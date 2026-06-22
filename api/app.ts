@@ -9,16 +9,12 @@ import express, {
 } from 'express'
 import cors from 'cors'
 import path from 'path'
-import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import authRoutes from './routes/auth.js'
 import albumRoutes from './routes/album.js'
-import dailyRoutes from './routes/daily.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-
-dotenv.config()
 
 const app: express.Application = express()
 
@@ -28,7 +24,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 app.use('/api/auth', authRoutes)
 app.use('/api/album', albumRoutes)
-app.use('/api/daily', dailyRoutes)
+
+const distPath = path.join(__dirname, '..', 'dist')
+app.use(express.static(distPath))
+
+app.get('*', (_req: Request, res: Response) => {
+  res.sendFile(path.join(distPath, 'index.html'))
+})
 
 /**
  * health

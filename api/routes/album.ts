@@ -90,53 +90,64 @@ router.post('/parse', async (req: Request, res: Response) => {
   }
 })
 
-router.post('/interpret', async (req: Request, res: Response) => {
+router.post('/parse-track', async (req: Request, res: Response) => {
   try {
-    const { albumName, artistName, tracks, genres } = req.body
-
-    if (!albumName || !artistName) {
-      res.status(400).json({ success: false, error: '缺少专辑信息' })
+    const { url } = req.body
+    if (!url) {
+      res.status(400).json({ success: false, error: '请提供歌曲链接' })
       return
     }
 
-    const trackList = (tracks || []).slice(0, 20).join('、')
-    const genreStr = (genres || []).join('、') || '未知'
+    let resolvedUrl = url
+    if (url.includes('163cn.tv')) {
+      const redirected = await resolveShortUrl(url)
+      if (!redirected) {
+        res.status(400).json({ success: false, error: '无法解析短链接' })
+        return
+      }
+      resolvedUrl = redirected
+    }
 
-    const prompt = `你是一位资深音乐评论人，请为以下专辑撰写一段约300字的深度专辑解读。解读需包含：专辑的整体风格与主题、音乐表现手法的特点、情感的传递与表达。请用流畅优美的中文散文风格书写，避免分点罗列。
-
-专辑名：${albumName}
-艺术家：${artistName}
-风格分类：${genreStr}
-曲目列表：${trackList}`
-
-    const aiResp = await fetch('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY || ''}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 800,
-        temperature: 0.8,
-      }),
-    })
-
-    if (!aiResp.ok) {
-      const errData = await aiResp.json().catch(() => ({}))
-      const errMsg = (errData as { error?: { message?: string } })?.error?.message || 'AI 服务暂不可用'
-      res.status(502).json({ success: false, error: errMsg })
+    const idMatch = resolvedUrl.match(/[&?]id=(\d+)/)
+    if (!idMatch) {
+      res.status(400).json({ success: false, error: '无法解析歌曲链接' })
       return
     }
 
-    const aiJson = await aiResp.json() as { choices?: { message?: { content?: string } }[] }
-    const content = aiJson.choices?.[0]?.message?.content || '未能生成解读'
+    const songId = idMatch[1]
+    const resp = await fetch(
+      `https://music.163.com/api/song/detail?ids=[${songId}]`,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://music.163.com/',
+        },
+      }
+    )
 
-    res.json({ success: true, data: { content } })
+    if (!resp.ok) {
+      res.status(502).json({ success: false, error: '获取歌曲信息失败' })
+      return
+    }
+
+    const json = await resp.json()
+    const song = json?.songs?.[0]
+    if (!song) {
+      res.status(404).json({ success: false, error: '未找到该歌曲' })
+      return
+    }
+
+    const data = {
+      songName: song.name || '未知歌曲',
+      artistName: song.ar?.map((a: { name: string }) => a.name).join('/') || '未知艺人',
+      albumName: song.al?.name || '',
+      coverUrl: (song.al?.picUrl || '').replace(/^http:/, 'https:'),
+    }
+
+    res.json({ success: true, data })
   } catch (err) {
     const message = err instanceof Error ? err.message : '未知错误'
-    res.status(500).json({ success: false, error: `生成失败: ${message}` })
+    res.status(500).json({ success: false, error: `解析失败: ${message}` })
   }
 })
 

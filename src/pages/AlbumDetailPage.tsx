@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2, Edit3, Loader2, Sparkles, Check, X } from 'lucide-react'
+import { ArrowLeft, Trash2, Edit3, Check, X } from 'lucide-react'
 import { useAlbumStore } from '@/stores/albumStore'
 import { GENRE_OPTIONS } from '@/types'
 import StarRating from '@/components/StarRating'
@@ -14,10 +14,8 @@ export default function AlbumDetailPage() {
   const deleteAlbum = useAlbumStore(s => s.deleteAlbum)
 
   const [isEditing, setIsEditing] = useState(false)
-  const [editInterpretation, setEditInterpretation] = useState('')
+  const [editNotes, setEditNotes] = useState('')
   const [editGenres, setEditGenres] = useState<string[]>([])
-  const [generating, setGenerating] = useState(false)
-  const [genError, setGenError] = useState('')
 
   if (!album) {
     return (
@@ -36,9 +34,8 @@ export default function AlbumDetailPage() {
   }
 
   const startEditing = () => {
-    setEditInterpretation(album.interpretation || '')
+    setEditNotes(album.interpretation || '')
     setEditGenres([...album.genres])
-    setGenError('')
     setIsEditing(true)
   }
 
@@ -48,37 +45,10 @@ export default function AlbumDetailPage() {
 
   const saveEditing = () => {
     updateAlbum(album.id, {
-      interpretation: editInterpretation,
+      interpretation: editNotes,
       genres: editGenres,
     })
     setIsEditing(false)
-  }
-
-  const handleGenerate = async () => {
-    setGenerating(true)
-    setGenError('')
-    try {
-      const resp = await fetch('/api/album/interpret', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          albumName: album.albumName,
-          artistName: album.artistName,
-          tracks: album.tracks.map(t => t.name),
-          genres: editGenres,
-        }),
-      })
-      const json = await resp.json()
-      if (!json.success) {
-        setGenError(json.error || '生成失败')
-        return
-      }
-      setEditInterpretation(json.data.content)
-    } catch {
-      setGenError('网络错误，请重试')
-    } finally {
-      setGenerating(false)
-    }
   }
 
   const toggleEditGenre = (g: string) => {
@@ -90,7 +60,7 @@ export default function AlbumDetailPage() {
     navigate('/')
   }
 
-  const displayInterpretation = isEditing ? editInterpretation : album.interpretation
+  const displayInterpretation = isEditing ? editNotes : album.interpretation
   const displayGenres = isEditing ? editGenres : album.genres
 
   return (
@@ -244,41 +214,23 @@ export default function AlbumDetailPage() {
         </div>
 
         <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-[#1d1d1f]">专辑解读</h2>
-            {isEditing && (
-              <button
-                onClick={handleGenerate}
-                disabled={generating}
-                className="h-9 px-5 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-medium hover:bg-[#e5e5ea] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {generating ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Sparkles size={14} />
-                )}
-                {generating ? '生成中...' : displayInterpretation ? '重新生成' : 'AI 生成解读'}
-              </button>
-            )}
-          </div>
-
-          {genError && <p className="text-sm text-[#fa2d48] mb-3">{genError}</p>}
+          <h2 className="text-lg font-semibold text-[#1d1d1f] mb-4">收听感想</h2>
 
           {isEditing ? (
             <textarea
-              value={editInterpretation}
-              onChange={e => setEditInterpretation(e.target.value)}
+              value={editNotes}
+              onChange={e => setEditNotes(e.target.value)}
               rows={6}
-              placeholder="输入专辑解读，或点击上方按钮让 AI 生成..."
+              placeholder="记录你对这张专辑的感受..."
               className="w-full px-4 py-3 rounded-xl border border-[#e5e5ea] bg-[#f9f9fb] text-sm text-[#1d1d1f] placeholder-[#c7c7cc] outline-none focus:border-[#fa2d48] focus:ring-1 focus:ring-[#fa2d48]/20 transition-all resize-none"
             />
           ) : displayInterpretation ? (
-            <div className="bg-[#fce4e8] border-l-4 border-[#fa2d48] rounded-r-xl p-5 text-sm text-[#1d1d1f] leading-relaxed whitespace-pre-wrap">
+            <div className="bg-[#f9f9fb] rounded-xl p-5 text-sm text-[#1d1d1f] leading-relaxed whitespace-pre-wrap">
               {displayInterpretation}
             </div>
           ) : (
             <div className="bg-[#f9f9fb] rounded-xl p-8 text-center text-[#c7c7cc] text-sm">
-              暂无专辑解读，点击编辑按钮添加
+              暂无收听感想，点击右上角编辑按钮添加
             </div>
           )}
         </div>

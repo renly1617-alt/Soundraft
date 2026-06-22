@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAlbumStore } from '@/stores/albumStore'
 import { GENRE_OPTIONS } from '@/types'
@@ -11,9 +11,7 @@ export default function AddAlbumPage() {
 
   const [url, setUrl] = useState('')
   const [parsing, setParsing] = useState(false)
-  const [generating, setGenerating] = useState(false)
   const [parseError, setParseError] = useState('')
-  const [genError, setGenError] = useState('')
 
   const [albumName, setAlbumName] = useState('')
   const [artistName, setArtistName] = useState('')
@@ -21,7 +19,7 @@ export default function AddAlbumPage() {
   const [listenDate, setListenDate] = useState(new Date().toISOString().slice(0, 10))
   const [genres, setGenres] = useState<string[]>([])
   const [tracks, setTracks] = useState<string[]>([])
-  const [interpretation, setInterpretation] = useState('')
+  const [notes, setNotes] = useState('')
 
   const [saving, setSaving] = useState(false)
 
@@ -52,34 +50,6 @@ export default function AddAlbumPage() {
     }
   }
 
-  const handleGenerate = async () => {
-    if (!albumName.trim()) return
-    setGenerating(true)
-    setGenError('')
-    try {
-      const resp = await fetch('/api/album/interpret', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          albumName,
-          artistName,
-          tracks,
-          genres,
-        }),
-      })
-      const json = await resp.json()
-      if (!json.success) {
-        setGenError(json.error || '生成失败')
-        return
-      }
-      setInterpretation(json.data.content)
-    } catch {
-      setGenError('网络错误，请重试')
-    } finally {
-      setGenerating(false)
-    }
-  }
-
   const toggleGenre = (g: string) => {
     setGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])
   }
@@ -93,7 +63,7 @@ export default function AddAlbumPage() {
       coverUrl,
       listenDate,
       genres,
-      interpretation,
+      interpretation: notes.trim(),
       tracks: tracks.map(name => ({ name })),
     })
     navigate('/')
@@ -227,31 +197,14 @@ export default function AddAlbumPage() {
         </section>
 
         <section className="bg-white rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-[#1d1d1f]">专辑解读</h2>
-            <button
-              onClick={handleGenerate}
-              disabled={generating || !albumName.trim()}
-              className="h-9 px-5 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-medium hover:bg-[#e5e5ea] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {generating ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Sparkles size={14} />
-              )}
-              {generating ? '生成中...' : interpretation ? '重新生成' : 'AI 生成解读'}
-            </button>
-          </div>
-          {genError && <p className="text-sm text-[#fa2d48] mb-3">{genError}</p>}
-          {interpretation ? (
-            <div className="bg-[#fce4e8] border-l-4 border-[#fa2d48] rounded-r-xl p-5 text-sm text-[#1d1d1f] leading-relaxed whitespace-pre-wrap">
-              {interpretation}
-            </div>
-          ) : (
-            <div className="bg-[#f9f9fb] rounded-xl p-8 text-center text-[#c7c7cc] text-sm">
-              点击上方按钮，让 AI 为你生成专辑解读
-            </div>
-          )}
+          <h2 className="text-lg font-semibold text-[#1d1d1f] mb-4">收听感想</h2>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            rows={5}
+            placeholder="记录你对这张专辑的感受、想说的话..."
+            className="w-full px-4 py-3 rounded-xl border border-[#e5e5ea] bg-[#f9f9fb] text-sm text-[#1d1d1f] placeholder-[#c7c7cc] outline-none focus:border-[#fa2d48] focus:ring-1 focus:ring-[#fa2d48]/20 transition-all resize-none"
+          />
         </section>
 
         <div className="flex justify-end gap-3 pb-8">
