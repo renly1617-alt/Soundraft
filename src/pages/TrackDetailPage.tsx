@@ -3,6 +3,7 @@ import { ArrowLeft, Trash2, Star, Music2, Disc3, Loader2, Plus } from 'lucide-re
 import { useNavigate } from 'react-router-dom'
 import { useTrackStore, type TrackEntry } from '@/stores/trackStore'
 import { GENRE_OPTIONS } from '@/types'
+import { extractUrl } from '@/lib/extractUrl'
 
 export default function TrackDetailPage() {
   const navigate = useNavigate()
@@ -46,11 +47,16 @@ export default function TrackDetailPage() {
     if (!url.trim()) return
     setParsing(true)
     setParseError('')
+    const targetUrl = extractUrl(url)
+    if (!targetUrl) {
+      setParseError('未检测到有效链接')
+      return
+    }
     try {
       const resp = await fetch('/api/album/parse-track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: targetUrl }),
       })
       const json = await resp.json()
       if (!json.success) {

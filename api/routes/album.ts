@@ -18,13 +18,25 @@ function extractAlbumId(rawUrl: string): string | null {
 
 async function resolveShortUrl(shortUrl: string): Promise<string | null> {
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
     const resp = await fetch(shortUrl, {
-      redirect: 'follow',
+      redirect: 'manual',
+      signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     })
-    return resp.url || null
+    clearTimeout(timeout)
+
+    if (resp.status >= 300 && resp.status < 400) {
+      const location = resp.headers.get('location')
+      if (location) return location.startsWith('http') ? location : `https://music.163.com${location}`
+    }
+
+    const text = await resp.text()
+    const urlMatch = text.match(/https?:\/\/music\.163\.com\/[^\s"'<]+/)
+    return urlMatch ? urlMatch[0] : null
   } catch {
     return null
   }

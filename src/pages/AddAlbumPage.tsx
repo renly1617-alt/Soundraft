@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAlbumStore } from '@/stores/albumStore'
 import { GENRE_OPTIONS } from '@/types'
 import type { ParseResult } from '@/types'
+import { extractUrl } from '@/lib/extractUrl'
 
 export default function AddAlbumPage() {
   const navigate = useNavigate()
@@ -29,11 +30,16 @@ export default function AddAlbumPage() {
     if (!url.trim()) return
     setParsing(true)
     setParseError('')
+    const targetUrl = extractUrl(url)
+    if (!targetUrl) {
+      setParseError('未检测到有效链接')
+      return
+    }
     try {
       const resp = await fetch('/api/album/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: targetUrl }),
       })
       const json = await resp.json()
       if (!json.success) {
