@@ -44,9 +44,11 @@ export default function AlbumCard({ album }: AlbumCardProps) {
         </p>
         <div className="flex items-center justify-between">
           <StarRating score={Math.round(album.averageScore)} size={14} />
-          <span className="text-xs text-[#8e8e93]">
-            {album.tracks.filter(t => t.score > 0).length}/{album.tracks.length}
-          </span>
+          {album.averageScore > 0 ? (
+            <span className="text-xs font-semibold text-[#fa2d48]">{album.averageScore.toFixed(1)}</span>
+          ) : (
+            <span className="text-xs text-[#c7c7cc]">未评分</span>
+          )}
         </div>
       </div>
     </div>

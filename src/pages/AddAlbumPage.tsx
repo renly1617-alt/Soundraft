@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAlbumStore } from '@/stores/albumStore'
 import { GENRE_OPTIONS } from '@/types'
@@ -20,6 +20,8 @@ export default function AddAlbumPage() {
   const [genres, setGenres] = useState<string[]>([])
   const [tracks, setTracks] = useState<string[]>([])
   const [notes, setNotes] = useState('')
+  const [customGenre, setCustomGenre] = useState('')
+  const [showCustomGenre, setShowCustomGenre] = useState(false)
 
   const [saving, setSaving] = useState(false)
 
@@ -52,6 +54,15 @@ export default function AddAlbumPage() {
 
   const toggleGenre = (g: string) => {
     setGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])
+  }
+
+  const addCustomGenre = () => {
+    const g = customGenre.trim()
+    if (g && !genres.includes(g)) {
+      setGenres(prev => [...prev, g])
+    }
+    setCustomGenre('')
+    setShowCustomGenre(false)
   }
 
   const handleSave = () => {
@@ -131,7 +142,7 @@ export default function AddAlbumPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-[#8e8e93] mb-1.5">收听日期</label>
               <input
                 type="date"
@@ -140,7 +151,7 @@ export default function AddAlbumPage() {
                 className="w-full h-11 px-4 rounded-xl border border-[#e5e5ea] bg-[#f9f9fb] text-sm text-[#1d1d1f] outline-none focus:border-[#fa2d48] focus:ring-1 focus:ring-[#fa2d48]/20 transition-all"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-[#8e8e93] mb-1.5">封面链接</label>
               <input
                 type="text"
@@ -167,6 +178,34 @@ export default function AddAlbumPage() {
                   {g}
                 </button>
               ))}
+              {genres.filter(g => !GENRE_OPTIONS.includes(g)).map(g => (
+                <button
+                  key={g}
+                  onClick={() => toggleGenre(g)}
+                  className="px-4 py-1.5 rounded-full text-sm font-medium bg-[#fa2d48] text-white"
+                >
+                  {g} ×
+                </button>
+              ))}
+              {showCustomGenre ? (
+                <input
+                  type="text"
+                  value={customGenre}
+                  onChange={e => setCustomGenre(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addCustomGenre() }}
+                  onBlur={addCustomGenre}
+                  placeholder="输入风格..."
+                  autoFocus
+                  className="w-24 h-8 px-3 rounded-full border border-[#e5e5ea] bg-[#f9f9fb] text-xs text-[#1d1d1f] placeholder-[#c7c7cc] outline-none focus:border-[#fa2d48]"
+                />
+              ) : (
+                <button
+                  onClick={() => setShowCustomGenre(true)}
+                  className="w-8 h-8 rounded-full bg-[#f2f2f6] text-[#8e8e93] flex items-center justify-center hover:bg-[#e5e5ea] transition-colors"
+                >
+                  <Plus size={14} />
+                </button>
+              )}
             </div>
           </div>
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Trash2, Star, Music2, Disc3, Loader2 } from 'lucide-react'
+import { ArrowLeft, Trash2, Star, Music2, Disc3, Loader2, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useTrackStore, type TrackEntry } from '@/stores/trackStore'
 import { GENRE_OPTIONS } from '@/types'
@@ -26,9 +26,20 @@ export default function TrackDetailPage() {
 
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [customGenre, setCustomGenre] = useState('')
+  const [showCustomGenre, setShowCustomGenre] = useState(false)
 
   const toggleGenre = (g: string) => {
     setGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])
+  }
+
+  const addCustomGenre = () => {
+    const g = customGenre.trim()
+    if (g && !genres.includes(g)) {
+      setGenres(prev => [...prev, g])
+    }
+    setCustomGenre('')
+    setShowCustomGenre(false)
   }
 
   const handleParse = async () => {
@@ -237,6 +248,36 @@ export default function TrackDetailPage() {
                     {g}
                   </button>
                 ))}
+                {genres.filter(g => !GENRE_OPTIONS.includes(g)).map(g => (
+                  <button
+                    key={g}
+                    onClick={() => toggleGenre(g)}
+                    type="button"
+                    className="px-3 py-1 rounded-full text-xs font-medium bg-[#fa2d48] text-white"
+                  >
+                    {g} ×
+                  </button>
+                ))}
+                {showCustomGenre ? (
+                  <input
+                    type="text"
+                    value={customGenre}
+                    onChange={e => setCustomGenre(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addCustomGenre() }}
+                    onBlur={addCustomGenre}
+                    placeholder="输入风格..."
+                    autoFocus
+                    className="w-20 h-7 px-2.5 rounded-full border border-[#e5e5ea] bg-[#f9f9fb] text-[11px] text-[#1d1d1f] placeholder-[#c7c7cc] outline-none focus:border-[#fa2d48]"
+                  />
+                ) : (
+                  <button
+                    onClick={() => setShowCustomGenre(true)}
+                    type="button"
+                    className="w-7 h-7 rounded-full bg-[#f2f2f6] text-[#8e8e93] flex items-center justify-center hover:bg-[#e5e5ea] transition-colors"
+                  >
+                    <Plus size={12} />
+                  </button>
+                )}
               </div>
             </div>
             <div>

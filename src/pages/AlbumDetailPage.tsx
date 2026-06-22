@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2, Edit3, Check, X } from 'lucide-react'
+import { ArrowLeft, Trash2, Edit3, Check, X, Plus } from 'lucide-react'
 import { useAlbumStore } from '@/stores/albumStore'
 import { GENRE_OPTIONS } from '@/types'
 import StarRating from '@/components/StarRating'
@@ -16,6 +16,9 @@ export default function AlbumDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [editNotes, setEditNotes] = useState('')
   const [editGenres, setEditGenres] = useState<string[]>([])
+  const [editListenDate, setEditListenDate] = useState('')
+  const [customGenre, setCustomGenre] = useState('')
+  const [showCustomGenre, setShowCustomGenre] = useState(false)
 
   if (!album) {
     return (
@@ -36,6 +39,7 @@ export default function AlbumDetailPage() {
   const startEditing = () => {
     setEditNotes(album.interpretation || '')
     setEditGenres([...album.genres])
+    setEditListenDate(album.listenDate)
     setIsEditing(true)
   }
 
@@ -47,12 +51,22 @@ export default function AlbumDetailPage() {
     updateAlbum(album.id, {
       interpretation: editNotes,
       genres: editGenres,
+      listenDate: editListenDate,
     })
     setIsEditing(false)
   }
 
   const toggleEditGenre = (g: string) => {
     setEditGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])
+  }
+
+  const addCustomGenre = () => {
+    const g = customGenre.trim()
+    if (g && !editGenres.includes(g)) {
+      setEditGenres(prev => [...prev, g])
+    }
+    setCustomGenre('')
+    setShowCustomGenre(false)
   }
 
   const handleDelete = () => {
@@ -137,45 +151,85 @@ export default function AlbumDetailPage() {
               <p className="text-[#8e8e93] text-sm mb-3">{album.artistName}</p>
 
               {isEditing ? (
-                <div className="mb-4">
-                  <label className="block text-xs font-medium text-[#8e8e93] mb-2">风格分类</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {GENRE_OPTIONS.map(g => (
-                      <button
-                        key={g}
-                        onClick={() => toggleEditGenre(g)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                          editGenres.includes(g)
-                            ? 'bg-[#fa2d48] text-white'
-                            : 'bg-[#f2f2f6] text-[#8e8e93] hover:bg-[#e5e5ea]'
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
+                <>
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-[#8e8e93] mb-2">风格分类</label>
+                    <div className="flex flex-wrap gap-1.5">
+                       {GENRE_OPTIONS.map(g => (
+                         <button
+                           key={g}
+                           onClick={() => toggleEditGenre(g)}
+                           className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                             editGenres.includes(g)
+                               ? 'bg-[#fa2d48] text-white'
+                               : 'bg-[#f2f2f6] text-[#8e8e93] hover:bg-[#e5e5ea]'
+                           }`}
+                         >
+                           {g}
+                         </button>
+                       ))}
+                       {editGenres.filter(g => !GENRE_OPTIONS.includes(g)).map(g => (
+                         <button
+                           key={g}
+                           onClick={() => toggleEditGenre(g)}
+                           className="px-3 py-1 rounded-full text-xs font-medium bg-[#fa2d48] text-white"
+                         >
+                           {g} ×
+                         </button>
+                       ))}
+                       {showCustomGenre ? (
+                         <input
+                           type="text"
+                           value={customGenre}
+                           onChange={e => setCustomGenre(e.target.value)}
+                           onKeyDown={e => { if (e.key === 'Enter') addCustomGenre() }}
+                           onBlur={addCustomGenre}
+                           placeholder="输入风格..."
+                           autoFocus
+                           className="w-20 h-7 px-2.5 rounded-full border border-[#e5e5ea] bg-[#f9f9fb] text-[11px] text-[#1d1d1f] placeholder-[#c7c7cc] outline-none focus:border-[#fa2d48]"
+                         />
+                       ) : (
+                         <button
+                           onClick={() => setShowCustomGenre(true)}
+                           className="w-7 h-7 rounded-full bg-[#f2f2f6] text-[#8e8e93] flex items-center justify-center hover:bg-[#e5e5ea] transition-colors"
+                         >
+                           <Plus size={12} />
+                         </button>
+                       )}
+                     </div>
                   </div>
-                </div>
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-[#8e8e93] mb-1.5">收听日期</label>
+                    <input
+                      type="date"
+                      value={editListenDate}
+                      onChange={e => setEditListenDate(e.target.value)}
+                      className="w-full max-w-[200px] h-9 px-3 rounded-xl border border-[#e5e5ea] bg-[#f9f9fb] text-sm text-[#1d1d1f] outline-none focus:border-[#fa2d48] focus:ring-1 focus:ring-[#fa2d48]/20 transition-all"
+                    />
+                  </div>
+                </>
               ) : (
-                <div className="flex items-center gap-2 mb-3">
-                  {displayGenres.map(g => (
-                    <span
-                      key={g}
-                      className="px-3 py-1 rounded-full bg-[#fce4e8] text-[#fa2d48] text-xs font-medium"
-                    >
-                      {g}
-                    </span>
-                  ))}
-                  {displayGenres.length === 0 && (
-                    <span className="text-xs text-[#c7c7cc]">未分类</span>
-                  )}
-                </div>
-              )}
-
+                <>
+                  <div className="flex items-center gap-2 mb-3">
+                {displayGenres.map(g => (
+                  <span
+                    key={g}
+                    className="px-3 py-1 rounded-full bg-[#fce4e8] text-[#fa2d48] text-xs font-medium"
+                  >
+                    {g}
+                  </span>
+                ))}
+                {displayGenres.length === 0 && (
+                  <span className="text-xs text-[#c7c7cc]">未分类</span>
+                )}
+                  </div>
               <div className="flex items-center gap-3 text-sm text-[#8e8e93]">
                 <span>收听于 {album.listenDate}</span>
                 <span className="text-[#e5e5ea]">|</span>
                 <span>{album.tracks.length} 首歌曲</span>
               </div>
+                </>
+              )}
               {album.averageScore > 0 && (
                 <div className="mt-4 flex items-center gap-2">
                   <StarRating score={Math.round(album.averageScore)} size={18} />
