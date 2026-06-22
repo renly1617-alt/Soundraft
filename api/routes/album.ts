@@ -1,6 +1,51 @@
-import { Router, type Request, type Response } from 'express'
+import { Router, type Request as ExpressRequest, type Response as ExpressResponse } from 'express'
 
 const router = Router()
+
+class FetchError extends Error {
+  status?: number
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'FetchError'
+    this.status = status
+  }
+}
+
+async function fetchWithRetry(url: string, opts: RequestInit = {}, retries = 3): Promise<globalThis.Response> {
+  let lastErr: unknown
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 12000)
+      const resp = await fetch(url, {
+        ...opts,
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+      if (!resp.ok && i < retries - 1) {
+        const status = resp.status
+        const body = await resp.text().catch(() => '')
+        lastErr = new FetchError(`HTTP ${status}: ${body.slice(0, 200)}`, status)
+        await sleep((i + 1) * 1000)
+        continue
+      }
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '')
+        throw new FetchError(`HTTP ${resp.status}: ${body.slice(0, 200)}`, resp.status)
+      }
+      return resp
+    } catch (e) {
+      lastErr = e
+      if (e instanceof FetchError && e.status && e.status < 500) throw e
+      if (i < retries - 1) await sleep((i + 1) * 1000)
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
 
 function extractAlbumId(rawUrl: string): string | null {
   const cleanUrl = rawUrl.replace(/#\//, '/')
@@ -17,17 +62,24 @@ function extractAlbumId(rawUrl: string): string | null {
 }
 
 async function resolveShortUrl(shortUrl: string): Promise<string | null> {
+  const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 8000)
-    const resp = await fetch(shortUrl, {
-      redirect: 'manual',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
+    const resp = await fetchWithRetry(shortUrl, {
+      redirect: 'follow',
+      headers: { 'User-Agent': ua },
     })
-    clearTimeout(timeout)
+    const finalUrl = resp.url
+    if (finalUrl && finalUrl !== shortUrl && finalUrl.includes('music.163.com')) {
+      return finalUrl
+    }
+  } catch {}
+
+  try {
+    const resp = await fetchWithRetry(shortUrl, {
+      redirect: 'manual',
+      headers: { 'User-Agent': ua },
+    })
 
     if (resp.status >= 300 && resp.status < 400) {
       const location = resp.headers.get('location')
@@ -36,13 +88,13 @@ async function resolveShortUrl(shortUrl: string): Promise<string | null> {
 
     const text = await resp.text()
     const urlMatch = text.match(/https?:\/\/music\.163\.com\/[^\s"'<]+/)
-    return urlMatch ? urlMatch[0] : null
-  } catch {
-    return null
-  }
+    if (urlMatch) return urlMatch[0]
+  } catch {}
+
+  return null
 }
 
-router.post('/parse', async (req: Request, res: Response) => {
+router.post('/parse', async (req: ExpressRequest, res: ExpressResponse) => {
   try {
     const { url } = req.body
     if (!url) {
@@ -66,7 +118,7 @@ router.post('/parse', async (req: Request, res: Response) => {
       return
     }
 
-    const resp = await fetch(
+    const resp = await fetchWithRetry(
       `https://music.163.com/api/album/${albumId}`,
       {
         headers: {
@@ -75,11 +127,6 @@ router.post('/parse', async (req: Request, res: Response) => {
         },
       }
     )
-
-    if (!resp.ok) {
-      res.status(502).json({ success: false, error: '获取专辑信息失败' })
-      return
-    }
 
     const json = await resp.json()
     const album = json.album || {}
@@ -102,7 +149,7 @@ router.post('/parse', async (req: Request, res: Response) => {
   }
 })
 
-router.post('/parse-track', async (req: Request, res: Response) => {
+router.post('/parse-track', async (req: ExpressRequest, res: ExpressResponse) => {
   try {
     const { url } = req.body
     if (!url) {
@@ -127,7 +174,7 @@ router.post('/parse-track', async (req: Request, res: Response) => {
     }
 
     const songId = idMatch[1]
-    const resp = await fetch(
+    const resp = await fetchWithRetry(
       `https://music.163.com/api/song/detail?ids=[${songId}]`,
       {
         headers: {
@@ -136,11 +183,6 @@ router.post('/parse-track', async (req: Request, res: Response) => {
         },
       }
     )
-
-    if (!resp.ok) {
-      res.status(502).json({ success: false, error: '获取歌曲信息失败' })
-      return
-    }
 
     const json = await resp.json()
     const song = json?.songs?.[0]
