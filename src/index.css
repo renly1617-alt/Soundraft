@@ -23,6 +23,14 @@ body {
   box-sizing: border-box;
 }
 
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 .brand-title {
   background: linear-gradient(135deg, #1d1d1f 0%, #fa2d48 50%, #ff6b6b 100%);
   -webkit-background-clip: text;

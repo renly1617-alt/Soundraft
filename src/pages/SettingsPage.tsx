@@ -36,7 +36,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-[#f2f2f6]">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#e5e5ea]/60">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#e5e5ea]/60 pt-safe">
         <div className="max-w-2xl mx-auto px-6 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate('/')}
@@ -48,7 +48,7 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-8 pb-safe">
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center gap-5 mb-6">
             <div className="relative">

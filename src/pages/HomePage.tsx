@@ -88,7 +88,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#f2f2f6]">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#e5e5ea]/60">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#e5e5ea]/60 pt-safe">
         <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
           <h1 className="brand-title text-3xl font-extrabold tracking-tight">
             SounDraft
@@ -135,7 +135,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-6">
+      <div className="max-w-6xl mx-auto px-6 py-6 pb-safe">
         {showEmpty ? (
           viewMode === 'album' ? <EmptyState /> : (
             <div className="flex flex-col items-center justify-center py-32 px-4">
@@ -182,7 +182,8 @@ export default function HomePage() {
         )}
       </div>
 
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 bg-white rounded-full shadow-lg border border-[#f0f0f2] flex p-1 gap-1">
+      <div className="fixed left-1/2 -translate-x-1/2 z-30 bg-white rounded-full shadow-lg border border-[#f0f0f2] flex p-1 gap-1"
+        style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
         <button
           onClick={() => { setViewMode('album'); setSelectedGenre(null) }}
           className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${

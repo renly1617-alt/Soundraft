@@ -65,7 +65,7 @@ export default function AlbumDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#f2f2f6]">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#e5e5ea]/60">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#e5e5ea]/60 pt-safe">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
@@ -109,7 +109,7 @@ export default function AlbumDetailPage() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-6 py-8 pb-safe">
         <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm mb-6">
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-full md:w-48 flex-shrink-0">

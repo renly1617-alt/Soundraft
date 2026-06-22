@@ -68,7 +68,7 @@ export default function WatchlistPage() {
 
   return (
     <div className="min-h-screen bg-[#f2f2f6]">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#f0f0f2]">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#f0f0f2] pt-safe">
         <div className="max-w-xl mx-auto px-6 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate('/')}
@@ -80,7 +80,7 @@ export default function WatchlistPage() {
         </div>
       </header>
 
-      <div className="max-w-xl mx-auto px-6 py-8">
+      <div className="max-w-xl mx-auto px-6 py-8 pb-safe">
         {items.length === 0 ? (
           <div className="bg-white rounded-[20px] p-8 border border-[#f0f0f2] text-center">
             <div className="w-16 h-16 rounded-full bg-[#FFE8EC] flex items-center justify-center mx-auto mb-4">
