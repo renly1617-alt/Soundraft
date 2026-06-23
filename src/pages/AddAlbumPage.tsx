@@ -11,6 +11,7 @@ export default function AddAlbumPage() {
   const addAlbum = useAlbumStore(s => s.addAlbum)
 
   const [url, setUrl] = useState('')
+  const [qqUrl, setQqUrl] = useState('')
   const [parsing, setParsing] = useState(false)
   const [parseError, setParseError] = useState('')
 
@@ -28,11 +29,21 @@ export default function AddAlbumPage() {
 
   const handleParse = async () => {
     if (!url.trim()) return
+    await doParse(url)
+  }
+
+  const handleQQParse = async () => {
+    if (!qqUrl.trim()) return
+    await doParse(qqUrl)
+  }
+
+  const doParse = async (rawUrl: string) => {
     setParsing(true)
     setParseError('')
-    const targetUrl = extractUrl(url)
+    const targetUrl = extractUrl(rawUrl)
     if (!targetUrl) {
       setParseError('未检测到有效链接')
+      setParsing(false)
       return
     }
     try {
@@ -115,6 +126,27 @@ export default function AddAlbumPage() {
               onClick={handleParse}
               disabled={parsing || !url.trim()}
               className="h-11 px-6 rounded-xl bg-[#fa2d48] text-white text-sm font-semibold hover:bg-[#e0283f] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+            >
+              {parsing && <Loader2 size={16} className="animate-spin" />}
+              {parsing ? '解析中' : '解析'}
+            </button>
+          </div>
+        </section>
+
+        <section className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-[#1d1d1f] mb-4">粘贴 QQ 音乐专辑链接</h2>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="https://c6.y.qq.com/base/fcgi-bin/u?__=..."
+              value={qqUrl}
+              onChange={e => setQqUrl(e.target.value)}
+              className="flex-1 h-11 px-4 rounded-xl border border-[#e5e5ea] bg-[#f9f9fb] text-sm text-[#1d1d1f] placeholder-[#c7c7cc] outline-none focus:border-[#1ecc6e] focus:ring-1 focus:ring-[#1ecc6e]/20 transition-all"
+            />
+            <button
+              onClick={handleQQParse}
+              disabled={parsing || !qqUrl.trim()}
+              className="h-11 px-6 rounded-xl bg-[#1ecc6e] text-white text-sm font-semibold hover:bg-[#1ab360] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
             >
               {parsing && <Loader2 size={16} className="animate-spin" />}
               {parsing ? '解析中' : '解析'}
