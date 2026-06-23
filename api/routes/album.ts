@@ -120,7 +120,7 @@ async function resolveQQAlbum(albumId: string) {
   return {
     albumName: gi.Falbum_name || '未知专辑',
     artistName: si.Fsinger_name || '未知艺术家',
-    coverUrl: mid ? `https://y.qq.com/music/photo_new/T002R300x300M000${mid}.jpg` : '',
+    coverUrl: mid ? `https://y.qq.com/music/photo_new/T002R800x800M000${mid}.jpg` : '',
     tracks: songs,
     genres: [],
   }
@@ -141,7 +141,7 @@ async function resolveQQTrack(songId: string) {
     songName: info.name || '未知歌曲',
     artistName: singers.join('/') || '未知艺人',
     albumName: album.name || '',
-    coverUrl: mid ? `https://y.qq.com/music/photo_new/T002R300x300M000${mid}.jpg` : (album.pmid ? `https://y.qq.com/music/photo_new/T002R300x300M000${album.pmid}.jpg` : ''),
+    coverUrl: mid ? `https://y.qq.com/music/photo_new/T002R800x800M000${mid}.jpg` : (album.pmid ? `https://y.qq.com/music/photo_new/T002R800x800M000${album.pmid}.jpg` : ''),
   }
 }
 
