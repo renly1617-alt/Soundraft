@@ -10,8 +10,12 @@ import EmptyState from '@/components/EmptyState'
 import Avatar from '@/components/Avatar'
 
 function TrackGridCard({ track }: { track: { id: string; songName: string; artistName: string; coverUrl: string; listenDate: string; score: number; genres: string[] } }) {
+  const navigate = useNavigate()
   return (
-    <div className="group bg-white rounded-2xl shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 overflow-hidden">
+    <div
+      className="group bg-white rounded-2xl shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 cursor-pointer overflow-hidden"
+      onClick={() => navigate(`/track/${track.id}`)}
+    >
       <div className="aspect-square bg-[#f2f2f6] overflow-hidden">
         {track.coverUrl ? (
           <img

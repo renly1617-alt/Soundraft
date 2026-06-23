@@ -4,6 +4,7 @@ import AddAlbumPage from '@/pages/AddAlbumPage'
 import AlbumDetailPage from '@/pages/AlbumDetailPage'
 import SettingsPage from '@/pages/SettingsPage'
 import TrackDetailPage from '@/pages/TrackDetailPage'
+import TrackInfoPage from '@/pages/TrackInfoPage'
 import WatchlistPage from '@/pages/WatchlistPage'
 import StatsPage from '@/pages/StatsPage'
 
@@ -14,6 +15,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/add" element={<AddAlbumPage />} />
         <Route path="/add-track" element={<TrackDetailPage />} />
+        <Route path="/track/:id" element={<TrackInfoPage />} />
         <Route path="/album/:id" element={<AlbumDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />

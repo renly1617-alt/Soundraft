@@ -1,16 +1,13 @@
 import { useState } from 'react'
-import { ArrowLeft, Trash2, Star, Music2, Disc3, Loader2, Plus } from 'lucide-react'
+import { ArrowLeft, Star, Loader2, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useTrackStore, type TrackEntry } from '@/stores/trackStore'
+import { useTrackStore } from '@/stores/trackStore'
 import { GENRE_OPTIONS } from '@/types'
 import { extractUrl } from '@/lib/extractUrl'
 
 export default function TrackDetailPage() {
   const navigate = useNavigate()
-  const tracks = useTrackStore(s => s.tracks)
   const addTrack = useTrackStore(s => s.addTrack)
-  const updateTrack = useTrackStore(s => s.updateTrack)
-  const deleteTrack = useTrackStore(s => s.deleteTrack)
 
   const [url, setUrl] = useState('')
   const [parsing, setParsing] = useState(false)
@@ -26,7 +23,6 @@ export default function TrackDetailPage() {
   const [notes, setNotes] = useState('')
 
   const [saving, setSaving] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
   const [customGenre, setCustomGenre] = useState('')
   const [showCustomGenre, setShowCustomGenre] = useState(false)
 
@@ -36,9 +32,7 @@ export default function TrackDetailPage() {
 
   const addCustomGenre = () => {
     const g = customGenre.trim()
-    if (g && !genres.includes(g)) {
-      setGenres(prev => [...prev, g])
-    }
+    if (g && !genres.includes(g)) setGenres(prev => [...prev, g])
     setCustomGenre('')
     setShowCustomGenre(false)
   }
@@ -74,35 +68,10 @@ export default function TrackDetailPage() {
     }
   }
 
-  const startEdit = (t: TrackEntry) => {
-    setEditingId(t.id)
-    setSongName(t.songName)
-    setArtistName(t.artistName)
-    setAlbumName(t.albumName)
-    setCoverUrl(t.coverUrl)
-    setListenDate(t.listenDate)
-    setGenres([...t.genres])
-    setScore(t.score)
-    setNotes(t.notes)
-  }
-
-  const cancelEdit = () => {
-    setEditingId(null)
-    setSongName('')
-    setArtistName('')
-    setAlbumName('')
-    setCoverUrl('')
-    setListenDate(new Date().toISOString().slice(0, 10))
-    setGenres([])
-    setScore(0)
-    setNotes('')
-  }
-
   const handleSave = () => {
     if (!songName.trim() || !artistName.trim()) return
     setSaving(true)
-
-    const data = {
+    addTrack({
       songName: songName.trim(),
       artistName: artistName.trim(),
       albumName: albumName.trim(),
@@ -111,43 +80,28 @@ export default function TrackDetailPage() {
       genres,
       score,
       notes,
-    }
-
-    if (editingId) {
-      updateTrack(editingId, data)
-    } else {
-      addTrack(data)
-    }
-
-    cancelEdit()
-    setSaving(false)
+    })
+    navigate('/')
   }
 
-  const handleDelete = (id: string) => {
-    deleteTrack(id)
-    if (editingId === id) cancelEdit()
-  }
-
-  const renderStars = (s: number, onClick?: (n: number) => void) => {
-    return (
-      <div className="flex gap-0.5">
-        {[1, 2, 3, 4, 5].map(n => (
-          <button
-            key={n}
-            onClick={() => onClick?.(n)}
-            type="button"
-            className={onClick ? 'cursor-pointer' : 'cursor-default'}
-          >
-            <Star
-              size={14}
-              fill={n <= s ? '#fa2d48' : 'none'}
-              className={n <= s ? 'text-[#fa2d48]' : 'text-[#e5e5ea]'}
-            />
-          </button>
-        ))}
-      </div>
-    )
-  }
+  const renderStars = (s: number, onClick?: (n: number) => void) => (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          onClick={() => onClick?.(n)}
+          type="button"
+          className={onClick ? 'cursor-pointer' : 'cursor-default'}
+        >
+          <Star
+            size={14}
+            fill={n <= s ? '#fa2d48' : 'none'}
+            className={n <= s ? 'text-[#fa2d48]' : 'text-[#e5e5ea]'}
+          />
+        </button>
+      ))}
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-[#f2f2f6]">
@@ -159,7 +113,7 @@ export default function TrackDetailPage() {
           >
             <ArrowLeft size={20} className="text-[#1d1d1f]" />
           </button>
-          <h1 className="text-2xl font-bold text-[#1d1d1f] tracking-tight">单曲记录</h1>
+          <h1 className="text-2xl font-bold text-[#1d1d1f] tracking-tight">添加单曲</h1>
         </div>
       </header>
 
@@ -187,9 +141,7 @@ export default function TrackDetailPage() {
         </section>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[#1d1d1f] mb-4">
-            {editingId ? '编辑单曲' : '添加单曲'}
-          </h2>
+          <h2 className="text-lg font-semibold text-[#1d1d1f] mb-4">单曲信息</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
@@ -246,9 +198,7 @@ export default function TrackDetailPage() {
                     onClick={() => toggleGenre(g)}
                     type="button"
                     className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                      genres.includes(g)
-                        ? 'bg-[#fa2d48] text-white'
-                        : 'bg-[#f2f2f6] text-[#8e8e93] hover:bg-[#e5e5ea]'
+                      genres.includes(g) ? 'bg-[#fa2d48] text-white' : 'bg-[#f2f2f6] text-[#8e8e93] hover:bg-[#e5e5ea]'
                     }`}
                   >
                     {g}
@@ -304,68 +254,21 @@ export default function TrackDetailPage() {
           </div>
 
           <div className="flex justify-end gap-3">
-            {editingId && (
-              <button
-                onClick={cancelEdit}
-                className="h-11 px-6 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-semibold hover:bg-[#e5e5ea] transition-colors"
-              >
-                取消
-              </button>
-            )}
+            <button
+              onClick={() => navigate('/')}
+              className="h-11 px-6 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-semibold hover:bg-[#e5e5ea] transition-colors"
+            >
+              取消
+            </button>
             <button
               onClick={handleSave}
               disabled={saving || !songName.trim() || !artistName.trim()}
               className="h-11 px-8 rounded-full bg-[#fa2d48] text-white text-sm font-semibold hover:bg-[#e0283f] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? '保存中...' : editingId ? '更新' : '添加单曲'}
+              {saving ? '保存中...' : '添加单曲'}
             </button>
           </div>
         </div>
-
-        {tracks.length > 0 && (
-          <div>
-            <h2 className="text-lg font-semibold text-[#1d1d1f] mb-3">
-              我的单曲 ({tracks.length})
-            </h2>
-            <div className="space-y-2">
-              {tracks.map(t => (
-                <div key={t.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-[#f2f2f6] overflow-hidden shrink-0">
-                    {t.coverUrl ? (
-                      <img src={t.coverUrl} alt={t.songName} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Music2 size={20} className="text-[#c7c7cc]" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-[#1d1d1f] truncate">{t.songName}</p>
-                    <p className="text-xs text-[#8e8e93]">{t.artistName}{t.albumName ? ` · ${t.albumName}` : ''}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {renderStars(t.score)}
-                      <span className="text-[11px] text-[#c7c7cc]">{t.listenDate}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => startEdit(t)}
-                      className="w-8 h-8 rounded-full hover:bg-[#f2f2f6] flex items-center justify-center text-[#8e8e93] transition-colors"
-                    >
-                      <Disc3 size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(t.id)}
-                      className="w-8 h-8 rounded-full hover:bg-[#fce4e8] hover:text-[#fa2d48] flex items-center justify-center text-[#8e8e93] transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
