@@ -19,6 +19,7 @@ export default function AlbumDetailPage() {
   const [editListenDate, setEditListenDate] = useState('')
   const [customGenre, setCustomGenre] = useState('')
   const [showCustomGenre, setShowCustomGenre] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   if (!album) {
     return (
@@ -74,6 +75,10 @@ export default function AlbumDetailPage() {
     navigate('/')
   }
 
+  const confirmDelete = () => {
+    setShowDeleteConfirm(true)
+  }
+
   const displayInterpretation = isEditing ? editNotes : album.interpretation
   const displayGenres = isEditing ? editGenres : album.genres
 
@@ -112,7 +117,7 @@ export default function AlbumDetailPage() {
                   <Edit3 size={16} />
                 </button>
                 <button
-                  onClick={handleDelete}
+                  onClick={confirmDelete}
                   className="w-9 h-9 rounded-full bg-[#f2f2f6] flex items-center justify-center hover:bg-[#fce4e8] hover:text-[#fa2d48] transition-colors text-[#8e8e93]"
                 >
                   <Trash2 size={18} />
@@ -289,6 +294,29 @@ export default function AlbumDetailPage() {
           )}
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="bg-white rounded-2xl p-6 mx-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
+            <p className="text-[#1d1d1f] text-base font-semibold mb-1">确认删除</p>
+            <p className="text-[#8e8e93] text-sm mb-6">确定要删除《{album.albumName}》吗？此操作不可撤销。</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 h-11 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-semibold hover:bg-[#e5e5ea] transition-colors"
+              >
+                否
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 h-11 rounded-full bg-[#fa2d48] text-white text-sm font-semibold hover:bg-[#e0283f] transition-colors"
+              >
+                是
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
