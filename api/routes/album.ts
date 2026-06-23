@@ -193,9 +193,9 @@ router.post('/parse-track', async (req: ExpressRequest, res: ExpressResponse) =>
 
     const data = {
       songName: song.name || '未知歌曲',
-      artistName: song.ar?.map((a: { name: string }) => a.name).join('/') || '未知艺人',
-      albumName: song.al?.name || '',
-      coverUrl: (song.al?.picUrl || '').replace(/^http:/, 'https:'),
+      artistName: (song.artists || song.ar)?.map((a: { name: string }) => a.name).join('/') || '未知艺人',
+      albumName: (song.album || song.al)?.name || '',
+      coverUrl: ((song.album || song.al)?.picUrl || '').replace(/^http:/, 'https:'),
     }
 
     res.json({ success: true, data })
