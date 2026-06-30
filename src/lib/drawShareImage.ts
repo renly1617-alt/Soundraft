@@ -34,18 +34,41 @@ function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numb
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const lines: string[] = []
-  let current = ''
-  for (const char of text) {
-    const test = current + char
-    if (ctx.measureText(test).width > maxWidth && current.length > 0) {
-      lines.push(current)
-      current = char
+  const tokens: string[] = []
+  let i = 0
+  while (i < text.length) {
+    const char = text[i]
+    if (/[a-zA-Z0-9]/.test(char)) {
+      let word = ''
+      while (i < text.length && /[a-zA-Z0-9]/.test(text[i])) {
+        word += text[i]
+        i++
+      }
+      tokens.push(word)
+    } else if (char === ' ') {
+      tokens.push(' ')
+      i++
     } else {
-      current = test
+      tokens.push(char)
+      i++
     }
   }
-  if (current) lines.push(current)
+
+  const lines: string[] = []
+  let currentLine = ''
+  for (const token of tokens) {
+    const testLine = currentLine + token
+    if (ctx.measureText(testLine).width > maxWidth && currentLine.length > 0) {
+      const trimmed = currentLine.trimEnd()
+      if (trimmed) lines.push(trimmed)
+      currentLine = token.startsWith(' ') ? token.trimStart() : token
+    } else {
+      currentLine = testLine
+    }
+  }
+  const trimmed = currentLine.trimEnd()
+  if (trimmed) lines.push(trimmed)
+
   return lines.length > 0 ? lines : ['']
 }
 
@@ -107,10 +130,10 @@ export async function drawShareImage(monthLabel: string, albums: Album[]): Promi
     contentH += info.rowH + (i < albums.length - 1 ? 1 : 0) + info.interpH
   })
 
-  const headerH = 60 + 48 + 14 + 88 + 14 + 60 + 10
+  const HEADER_BOTTOM_PAD = 48
+  const headerH = 60 + 48 + 14 + 88 + 14 + 60 + HEADER_BOTTOM_PAD
   const footerH = 40 + 48 + 26 + 8 + 20 + 48
-  const cardPad = CARD_PAD
-  const H = headerH + cardPad + contentH + cardPad + footerH
+  const H = headerH + CARD_PAD + contentH + CARD_PAD + footerH
 
   const canvas = document.createElement('canvas')
   canvas.width = W
@@ -148,9 +171,9 @@ export async function drawShareImage(monthLabel: string, albums: Album[]): Promi
   ctx.font = '500 30px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
   ctx.fillText('张专辑', PAD + countW + 12, 60 + 48 + 14 + 88 + 14 + 60)
 
-  // 白色卡片
-  const cardY = headerH - 20
-  const cardH = H - headerH + 20 - footerH + 48
+  // 白色卡片（顶部与header分离，不再重叠）
+  const cardY = headerH
+  const cardH = H - headerH - footerH - CARD_PAD
   ctx.fillStyle = '#ffffff'
   ctx.beginPath()
   ctx.roundRect(40, cardY, W - 80, cardH, 32)
