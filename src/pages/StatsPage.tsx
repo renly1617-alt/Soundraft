@@ -23,12 +23,20 @@ function monthKeyToLabel(key: string) {
   return `${y}年${parseInt(m)}月`
 }
 
-function preloadImage(src: string): Promise<void> {
+function preloadImage(src: string): Promise<boolean> {
   return new Promise((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    img.onload = () => resolve()
-    img.onerror = () => resolve()
+    img.onload = () => {
+      img.decode().then(() => resolve(true)).catch(() => {
+        console.warn('[ShareImage] decode 失败, URL:', src)
+        resolve(true)
+      })
+    }
+    img.onerror = () => {
+      console.warn('[ShareImage] 封面加载失败, URL:', src)
+      resolve(false)
+    }
     img.src = src
   })
 }
@@ -107,7 +115,13 @@ export default function StatsPage() {
 
   const monthAlbums: Album[] = useMemo(() => {
     if (!selectedMonthKey) return []
-    return albums.filter(a => toMonthKey(a.listenDate) === selectedMonthKey)
+    const filtered = albums.filter(a => toMonthKey(a.listenDate) === selectedMonthKey)
+    return [...filtered].sort((a, b) => {
+      if (a.averageScore > 0 && b.averageScore === 0) return -1
+      if (a.averageScore === 0 && b.averageScore > 0) return 1
+      if (a.averageScore !== b.averageScore) return b.averageScore - a.averageScore
+      return b.listenDate.localeCompare(a.listenDate)
+    })
   }, [albums, selectedMonthKey])
 
   const monthLabel = useMemo(() => {
@@ -144,7 +158,7 @@ export default function StatsPage() {
     let cancelled = false
 
     const doGenerate = async () => {
-      await new Promise(r => setTimeout(r, 100))
+      await new Promise(r => setTimeout(r, 200))
 
       if (cancelled) return
 
@@ -158,9 +172,12 @@ export default function StatsPage() {
       try {
         const covers = monthAlbums.map(a => a.coverUrl).filter(Boolean) as string[]
         console.log('[ShareImage] 预加载封面:', covers.length, '张')
-        await Promise.all(covers.map(preloadImage))
+        const results = await Promise.all(covers.map(preloadImage))
+        const loadedCount = results.filter(Boolean).length
+        const failedCount = results.length - loadedCount
+        console.log('[ShareImage] 封面加载结果: 成功', loadedCount, '失败', failedCount)
 
-        await new Promise(r => setTimeout(r, 300))
+        await new Promise(r => setTimeout(r, 500))
 
         if (cancelled) return
 
