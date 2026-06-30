@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from 'react'
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import { ArrowLeft, Disc3, Music2, TrendingUp, BarChart3, Star, ChevronRight, Share2, X, Loader2, Download } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAlbumStore } from '@/stores/albumStore'
@@ -129,26 +129,65 @@ export default function StatsPage() {
     setShowMonthSelector(false)
   }
 
-  const generateImage = useCallback(async () => {
-    if (!shareRef.current) return
-    setGenerating(true)
-    try {
-      const covers = monthAlbums.map(a => a.coverUrl).filter(Boolean) as string[]
-      await Promise.all(covers.map(preloadImage))
-      await new Promise(r => setTimeout(r, 200))
-      const dataUrl = await toPng(shareRef.current, {
-        quality: 1,
-        pixelRatio: 1,
-        skipAutoScale: true,
-      })
-      setGeneratedUrl(dataUrl)
-    } catch (err) {
-      console.error('图片生成失败', err)
-      alert('图片生成失败，请重试')
-    } finally {
-      setGenerating(false)
+  const generateImage = useCallback(() => {
+    if (monthAlbums.length === 0) {
+      alert('该月份没有专辑记录')
+      return
     }
-  }, [monthAlbums])
+    console.log('[ShareImage] 开始生成，选中月份:', selectedMonthKey, '专辑数:', monthAlbums.length)
+    setGenerating(true)
+  }, [monthAlbums, selectedMonthKey])
+
+  useEffect(() => {
+    if (!generating) return
+
+    let cancelled = false
+
+    const doGenerate = async () => {
+      await new Promise(r => setTimeout(r, 100))
+
+      if (cancelled) return
+
+      if (!shareRef.current) {
+        console.error('[ShareImage] shareRef.current 为空，组件未挂载')
+        alert('图片生成失败，请重试')
+        setGenerating(false)
+        return
+      }
+
+      try {
+        const covers = monthAlbums.map(a => a.coverUrl).filter(Boolean) as string[]
+        console.log('[ShareImage] 预加载封面:', covers.length, '张')
+        await Promise.all(covers.map(preloadImage))
+
+        await new Promise(r => setTimeout(r, 300))
+
+        if (cancelled) return
+
+        console.log('[ShareImage] 调用 toPng...')
+        const dataUrl = await toPng(shareRef.current, {
+          quality: 1,
+          pixelRatio: 1,
+          skipAutoScale: true,
+        })
+        console.log('[ShareImage] toPng 完成, dataUrl 长度:', dataUrl.length)
+        setGeneratedUrl(dataUrl)
+      } catch (err) {
+        console.error('[ShareImage] 图片生成失败', err)
+        alert('图片生成失败，请重试')
+      } finally {
+        if (!cancelled) {
+          setGenerating(false)
+        }
+      }
+    }
+
+    doGenerate()
+
+    return () => {
+      cancelled = true
+    }
+  }, [generating, monthAlbums])
 
   const handleShare = async () => {
     if (!generatedUrl) return
@@ -444,7 +483,7 @@ export default function StatsPage() {
           </div>
           <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4 relative z-10">
             <Loader2 size={36} className="animate-spin text-[#fa2d48]" />
-            <p className="text-[#1d1d1f] font-semibold">正在生成图片...</p>
+            <p className="text-[#1d1d1f] font-semibold">生成中...</p>
           </div>
         </div>
       )}
