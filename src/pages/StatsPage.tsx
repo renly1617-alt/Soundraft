@@ -28,26 +28,39 @@ function proxyImageUrl(src: string): string {
   return `https://soundraft-production.up.railway.app/api/image-proxy?url=${encodeURIComponent(src)}`
 }
 
-async function urlToDataUrl(src: string): Promise<string | null> {
-  try {
+function urlToDataUrl(src: string): Promise<string | null> {
+  return new Promise((resolve) => {
     const proxy = proxyImageUrl(src)
-    const resp = await fetch(proxy, { mode: 'cors' })
-    if (!resp.ok) {
-      console.warn('[ShareImage] proxy fetch failed', resp.status, src)
-      return null
-    }
-    const blob = await resp.blob()
-    if (blob.size === 0) return null
-    return await new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('GET', proxy, true)
+    xhr.responseType = 'blob'
+    xhr.onload = function() {
+      if (xhr.status !== 200) {
+        console.warn('[ShareImage] xhr failed', xhr.status, src)
+        resolve(null)
+        return
+      }
+      const blob = xhr.response
+      if (!blob || blob.size === 0) {
+        resolve(null)
+        return
+      }
       const reader = new FileReader()
       reader.onloadend = () => resolve(reader.result as string)
-      reader.onerror = reject
+      reader.onerror = () => resolve(null)
       reader.readAsDataURL(blob)
-    })
-  } catch (err) {
-    console.warn('[ShareImage] urlToDataUrl error', src, err)
-    return null
-  }
+    }
+    xhr.onerror = () => {
+      console.warn('[ShareImage] xhr error', src)
+      resolve(null)
+    }
+    xhr.ontimeout = () => {
+      console.warn('[ShareImage] xhr timeout', src)
+      resolve(null)
+    }
+    xhr.timeout = 15000
+    xhr.send()
+  })
 }
 
 export default function StatsPage() {
