@@ -23,19 +23,32 @@ function monthKeyToLabel(key: string) {
   return `${y}年${parseInt(m)}月`
 }
 
-function preloadImage(src: string): Promise<boolean> {
+function imageToDataUrl(src: string): Promise<string | null> {
   return new Promise((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
-      img.decode().then(() => resolve(true)).catch(() => {
+      img.decode().then(() => {
+        try {
+          const canvas = document.createElement('canvas')
+          canvas.width = img.naturalWidth
+          canvas.height = img.naturalHeight
+          const ctx = canvas.getContext('2d')
+          if (!ctx) { resolve(null); return }
+          ctx.drawImage(img, 0, 0)
+          resolve(canvas.toDataURL('image/jpeg', 0.92))
+        } catch {
+          console.warn('[ShareImage] canvas 转换失败, URL:', src)
+          resolve(null)
+        }
+      }).catch(() => {
         console.warn('[ShareImage] decode 失败, URL:', src)
-        resolve(true)
+        resolve(null)
       })
     }
     img.onerror = () => {
       console.warn('[ShareImage] 封面加载失败, URL:', src)
-      resolve(false)
+      resolve(null)
     }
     img.src = src
   })
@@ -111,6 +124,7 @@ export default function StatsPage() {
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
+  const [shareAlbums, setShareAlbums] = useState<Album[]>([])
   const shareRef = useRef<HTMLDivElement>(null)
 
   const monthAlbums: Album[] = useMemo(() => {
@@ -143,44 +157,64 @@ export default function StatsPage() {
     setShowMonthSelector(false)
   }
 
-  const generateImage = useCallback(() => {
+  const generateImage = useCallback(async () => {
     if (monthAlbums.length === 0) {
       alert('该月份没有专辑记录')
       return
     }
-    console.log('[ShareImage] 开始生成，选中月份:', selectedMonthKey, '专辑数:', monthAlbums.length)
+    console.log('[ShareImage] 开始转换封面为 data URL, 专辑数:', monthAlbums.length)
     setGenerating(true)
-  }, [monthAlbums, selectedMonthKey])
+
+    const urlsToLoad: { url: string; idx: number }[] = []
+    monthAlbums.forEach((a, i) => {
+      if (a.coverUrl) urlsToLoad.push({ url: a.coverUrl, idx: i })
+    })
+
+    console.log('[ShareImage] 需转换封面:', urlsToLoad.length, '张')
+
+    const dataUrls = await Promise.all(
+      urlsToLoad.map(async ({ url, idx }) => {
+        const du = await imageToDataUrl(url)
+        return { idx, dataUrl: du }
+      })
+    )
+
+    let success = 0
+    let fail = 0
+    const albumsWithDataUrls = monthAlbums.map((a, i) => {
+      const match = dataUrls.find(d => d.idx === i)
+      if (match?.dataUrl) {
+        success++
+        return { ...a, coverUrl: match.dataUrl }
+      }
+      if (a.coverUrl) fail++
+      return a
+    })
+
+    console.log('[ShareImage] 封面转换完成: 成功', success, '失败', fail)
+
+    setShareAlbums(albumsWithDataUrls)
+  }, [monthAlbums])
 
   useEffect(() => {
-    if (!generating) return
+    if (!generating || shareAlbums.length === 0) return
 
     let cancelled = false
 
     const doGenerate = async () => {
-      await new Promise(r => setTimeout(r, 200))
+      await new Promise(r => setTimeout(r, 400))
 
       if (cancelled) return
 
       if (!shareRef.current) {
-        console.error('[ShareImage] shareRef.current 为空，组件未挂载')
+        console.error('[ShareImage] shareRef.current 为空')
         alert('图片生成失败，请重试')
         setGenerating(false)
+        setShareAlbums([])
         return
       }
 
       try {
-        const covers = monthAlbums.map(a => a.coverUrl).filter(Boolean) as string[]
-        console.log('[ShareImage] 预加载封面:', covers.length, '张')
-        const results = await Promise.all(covers.map(preloadImage))
-        const loadedCount = results.filter(Boolean).length
-        const failedCount = results.length - loadedCount
-        console.log('[ShareImage] 封面加载结果: 成功', loadedCount, '失败', failedCount)
-
-        await new Promise(r => setTimeout(r, 500))
-
-        if (cancelled) return
-
         console.log('[ShareImage] 调用 toPng...')
         const dataUrl = await toPng(shareRef.current, {
           quality: 1,
@@ -195,6 +229,7 @@ export default function StatsPage() {
       } finally {
         if (!cancelled) {
           setGenerating(false)
+          setShareAlbums([])
         }
       }
     }
@@ -204,7 +239,7 @@ export default function StatsPage() {
     return () => {
       cancelled = true
     }
-  }, [generating, monthAlbums])
+  }, [generating, shareAlbums])
 
   const handleShare = async () => {
     if (!generatedUrl) return
@@ -496,7 +531,7 @@ export default function StatsPage() {
             transformOrigin: 'top left',
             overflow: 'hidden',
           }}>
-            <ShareImage ref={shareRef} monthLabel={monthLabel} albums={monthAlbums} />
+            <ShareImage ref={shareRef} monthLabel={monthLabel} albums={shareAlbums} />
           </div>
           <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4 relative z-10">
             <Loader2 size={36} className="animate-spin text-[#fa2d48]" />
