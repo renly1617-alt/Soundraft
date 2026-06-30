@@ -1,10 +1,9 @@
-import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { ArrowLeft, Disc3, Music2, TrendingUp, BarChart3, Star, ChevronRight, Share2, X, Loader2, Download } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAlbumStore } from '@/stores/albumStore'
 import { useTrackStore } from '@/stores/trackStore'
-import { toPng } from 'html-to-image'
-import ShareImage from '@/components/ShareImage'
+import { drawShareImage } from '@/lib/drawShareImage'
 import type { Album } from '@/types'
 
 const GENRE_COLORS = [
@@ -21,46 +20,6 @@ function toMonthKey(dateStr: string) {
 function monthKeyToLabel(key: string) {
   const [y, m] = key.split('-')
   return `${y}年${parseInt(m)}月`
-}
-
-function proxyImageUrl(src: string): string {
-  if (src.startsWith('data:')) return src
-  return `https://soundraft-production.up.railway.app/api/image-proxy?url=${encodeURIComponent(src)}`
-}
-
-function urlToDataUrl(src: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    const proxy = proxyImageUrl(src)
-    const xhr = new XMLHttpRequest()
-    xhr.open('GET', proxy, true)
-    xhr.responseType = 'blob'
-    xhr.onload = function() {
-      if (xhr.status !== 200) {
-        console.warn('[ShareImage] xhr failed', xhr.status, src)
-        resolve(null)
-        return
-      }
-      const blob = xhr.response
-      if (!blob || blob.size === 0) {
-        resolve(null)
-        return
-      }
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result as string)
-      reader.onerror = () => resolve(null)
-      reader.readAsDataURL(blob)
-    }
-    xhr.onerror = () => {
-      console.warn('[ShareImage] xhr error', src)
-      resolve(null)
-    }
-    xhr.ontimeout = () => {
-      console.warn('[ShareImage] xhr timeout', src)
-      resolve(null)
-    }
-    xhr.timeout = 15000
-    xhr.send()
-  })
 }
 
 export default function StatsPage() {
@@ -133,8 +92,6 @@ export default function StatsPage() {
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
-  const [shareAlbums, setShareAlbums] = useState<Album[]>([])
-  const shareRef = useRef<HTMLDivElement>(null)
 
   const monthAlbums: Album[] = useMemo(() => {
     if (!selectedMonthKey) return []
@@ -174,68 +131,17 @@ export default function StatsPage() {
     console.log('[ShareImage] 开始生成, 专辑数:', monthAlbums.length)
     setGenerating(true)
 
-    // 先把所有封面转为 data URL
-    const albumsWithDataUrls = await Promise.all(
-      monthAlbums.map(async (a) => {
-        if (!a.coverUrl) return a
-        const dataUrl = await urlToDataUrl(a.coverUrl)
-        if (dataUrl) {
-          console.log('[ShareImage] 封面转 data URL 成功:', a.albumName)
-          return { ...a, coverUrl: dataUrl }
-        }
-        console.warn('[ShareImage] 封面转 data URL 失败:', a.albumName, a.coverUrl)
-        return a
-      })
-    )
-
-    setShareAlbums(albumsWithDataUrls)
-  }, [monthAlbums])
-
-  useEffect(() => {
-    if (!generating || shareAlbums.length === 0) return
-
-    let cancelled = false
-
-    const doGenerate = async () => {
-      // 等待 DOM 渲染完成
-      await new Promise(r => setTimeout(r, 500))
-
-      if (cancelled) return
-
-      if (!shareRef.current) {
-        console.error('[ShareImage] shareRef.current 为空')
-        alert('图片生成失败，请重试')
-        setGenerating(false)
-        setShareAlbums([])
-        return
-      }
-
-      try {
-        console.log('[ShareImage] 调用 toPng...')
-        const dataUrl = await toPng(shareRef.current, {
-          quality: 1,
-          pixelRatio: 2,
-          skipAutoScale: true,
-        })
-        console.log('[ShareImage] toPng 完成, dataUrl 长度:', dataUrl.length)
-        setGeneratedUrl(dataUrl)
-      } catch (err) {
-        console.error('[ShareImage] 图片生成失败', err)
-        alert('图片生成失败，请重试')
-      } finally {
-        if (!cancelled) {
-          setGenerating(false)
-          setShareAlbums([])
-        }
-      }
+    try {
+      const dataUrl = await drawShareImage(monthLabel, monthAlbums)
+      console.log('[ShareImage] Canvas 绘制完成, dataUrl 长度:', dataUrl.length)
+      setGeneratedUrl(dataUrl)
+    } catch (err) {
+      console.error('[ShareImage] 图片生成失败', err)
+      alert('图片生成失败，请重试')
+    } finally {
+      setGenerating(false)
     }
-
-    doGenerate()
-
-    return () => {
-      cancelled = true
-    }
-  }, [generating, shareAlbums])
+  }, [monthAlbums, monthLabel])
 
   const handleShare = async () => {
     if (!generatedUrl) return
@@ -519,20 +425,7 @@ export default function StatsPage() {
 
       {generating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div
-            ref={shareRef}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: 1080,
-              transformOrigin: 'top left',
-              overflow: 'hidden',
-            }}
-          >
-            <ShareImage monthLabel={monthLabel} albums={shareAlbums} />
-          </div>
-          <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4 relative z-10">
+          <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4">
             <Loader2 size={36} className="animate-spin text-[#fa2d48]" />
             <p className="text-[#1d1d1f] font-semibold">生成中...</p>
           </div>
