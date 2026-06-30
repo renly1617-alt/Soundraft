@@ -1,8 +1,11 @@
-import { useMemo } from 'react'
-import { ArrowLeft, Disc3, Music2, TrendingUp, BarChart3, Star, ChevronRight } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Disc3, Music2, TrendingUp, BarChart3, Star, ChevronRight, Share2, X, Loader2, Download } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAlbumStore } from '@/stores/albumStore'
 import { useTrackStore } from '@/stores/trackStore'
+import { toPng } from 'html-to-image'
+import ShareImage from '@/components/ShareImage'
+import type { Album } from '@/types'
 
 const GENRE_COLORS = [
   '#FA233B', '#E65100', '#2E7D32', '#1A56DB', '#7B1FA2',
@@ -67,6 +70,84 @@ export default function StatsPage() {
     [tracks]
   )
 
+  const availableMonths = useMemo(() => {
+    const months = new Set(albums.map(a => a.listenDate))
+    return Array.from(months).sort((a, b) => b.localeCompare(a))
+  }, [albums])
+
+  const [showMonthSelector, setShowMonthSelector] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
+  const shareRef = useRef<HTMLDivElement>(null)
+
+  const monthAlbums: Album[] = useMemo(() => {
+    if (!selectedMonth) return []
+    return albums.filter(a => a.listenDate === selectedMonth)
+  }, [albums, selectedMonth])
+
+  const monthLabel = useMemo(() => {
+    if (!selectedMonth) return ''
+    const [y, m] = selectedMonth.split('-')
+    return `${y}年${parseInt(m)}月`
+  }, [selectedMonth])
+
+  const handleShareClick = () => {
+    if (availableMonths.length === 0) {
+      alert('暂无可分享的收听记录')
+      return
+    }
+    setShowMonthSelector(true)
+    setGeneratedUrl(null)
+  }
+
+  const handleSelectMonth = async (month: string) => {
+    setSelectedMonth(month)
+    setShowMonthSelector(false)
+  }
+
+  const generateImage = async () => {
+    if (!shareRef.current) return
+    setGenerating(true)
+    try {
+      await new Promise(r => setTimeout(r, 300))
+      const dataUrl = await toPng(shareRef.current, {
+        quality: 1,
+        pixelRatio: 1,
+        skipAutoScale: true,
+      })
+      setGeneratedUrl(dataUrl)
+    } catch (err) {
+      console.error('图片生成失败', err)
+      alert('图片生成失败，请重试')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!generatedUrl) return
+    const blob = await (await fetch(generatedUrl)).blob()
+    const file = new File([blob], `Soundraft_${selectedMonth}.png`, { type: 'image/png' })
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: '月度专辑收听记录' })
+      } catch {
+        // 用户取消分享，忽略
+      }
+    } else {
+      const a = document.createElement('a')
+      a.href = generatedUrl
+      a.download = `Soundraft_${selectedMonth}.png`
+      a.click()
+    }
+  }
+
+  const handleClosePreview = () => {
+    setSelectedMonth(null)
+    setGeneratedUrl(null)
+  }
+
   return (
     <div className="min-h-screen bg-[#f2f2f6]">
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-[#e5e5ea]/60 pt-safe">
@@ -77,7 +158,13 @@ export default function StatsPage() {
           >
             <ArrowLeft size={20} className="text-[#1d1d1f]" />
           </button>
-          <h1 className="text-2xl font-bold text-[#1C1C1E] tracking-tight">统计</h1>
+          <h1 className="text-2xl font-bold text-[#1C1C1E] tracking-tight flex-1">统计</h1>
+          <button
+            onClick={handleShareClick}
+            className="w-9 h-9 rounded-full bg-[#f2f2f6] flex items-center justify-center hover:bg-[#fce4e8] hover:text-[#fa2d48] transition-colors text-[#8e8e93]"
+          >
+            <Share2 size={18} />
+          </button>
         </div>
       </header>
 
@@ -266,6 +353,110 @@ export default function StatsPage() {
           </section>
         )}
       </div>
+
+      {showMonthSelector && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowMonthSelector(false)}>
+          <div className="bg-white rounded-t-3xl md:rounded-3xl p-6 w-full md:max-w-sm md:mx-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-[#1d1d1f]">选择分享月份</h3>
+              <button onClick={() => setShowMonthSelector(false)} className="w-8 h-8 rounded-full bg-[#f2f2f6] flex items-center justify-center hover:bg-[#e5e5ea] transition-colors">
+                <X size={16} className="text-[#8e8e93]" />
+              </button>
+            </div>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {availableMonths.map(month => {
+                const [y, m] = month.split('-')
+                const count = albums.filter(a => a.listenDate === month).length
+                return (
+                  <button
+                    key={month}
+                    onClick={() => handleSelectMonth(month)}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-[#f2f2f6] transition-colors text-left"
+                  >
+                    <span className="text-[#1d1d1f] font-semibold">{y}年{parseInt(m)}月</span>
+                    <span className="text-sm text-[#8e8e93]">{count} 张专辑</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedMonth && !generatedUrl && !generating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={handleClosePreview}>
+          <div className="bg-white rounded-2xl p-6 mx-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
+            <p className="text-[#1d1d1f] text-base font-semibold mb-1">生成分享图片</p>
+            <p className="text-[#8e8e93] text-sm mb-6">将生成 {monthLabel} 的专辑收听记录图片，共 {monthAlbums.length} 张专辑。</p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleClosePreview}
+                className="flex-1 h-11 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-semibold hover:bg-[#e5e5ea] transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={generateImage}
+                className="flex-1 h-11 rounded-full bg-[#fa2d48] text-white text-sm font-semibold hover:bg-[#e0283f] transition-colors"
+              >
+                生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {generating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4">
+            <Loader2 size={36} className="animate-spin text-[#fa2d48]" />
+            <p className="text-[#1d1d1f] font-semibold">正在生成图片...</p>
+          </div>
+        </div>
+      )}
+
+      {generatedUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={handleClosePreview}>
+          <div className="bg-white rounded-2xl p-4 mx-4 max-w-md w-full shadow-xl flex flex-col gap-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-[#1d1d1f]">分享图片</h3>
+              <button onClick={handleClosePreview} className="w-8 h-8 rounded-full bg-[#f2f2f6] flex items-center justify-center hover:bg-[#e5e5ea] transition-colors">
+                <X size={16} className="text-[#8e8e93]" />
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden bg-[#f2f2f6]">
+              <img src={generatedUrl} alt="分享图片预览" className="w-full" />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const a = document.createElement('a')
+                  a.href = generatedUrl
+                  a.download = `Soundraft_${selectedMonth}.png`
+                  a.click()
+                }}
+                className="flex-1 h-11 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-semibold hover:bg-[#e5e5ea] transition-colors flex items-center justify-center gap-2"
+              >
+                <Download size={16} />
+                保存图片
+              </button>
+              <button
+                onClick={handleShare}
+                className="flex-1 h-11 rounded-full bg-[#fa2d48] text-white text-sm font-semibold hover:bg-[#e0283f] transition-colors flex items-center justify-center gap-2"
+              >
+                <Share2 size={16} />
+                分享
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedMonth && (
+        <div ref={shareRef} style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1 }}>
+          <ShareImage month={selectedMonth} monthLabel={monthLabel} albums={monthAlbums} />
+        </div>
+      )}
     </div>
   )
 }
