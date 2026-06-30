@@ -506,27 +506,23 @@ export default function StatsPage() {
 
       {generating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div
+            ref={shareRef}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: 1080,
+              transformOrigin: 'top left',
+              overflow: 'hidden',
+            }}
+          >
+            <ShareImage monthLabel={monthLabel} albums={shareAlbums} />
+          </div>
           <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4 relative z-10">
             <Loader2 size={36} className="animate-spin text-[#fa2d48]" />
             <p className="text-[#1d1d1f] font-semibold">生成中...</p>
           </div>
-        </div>
-      )}
-
-      {/* 隐藏的分享海报组件 - 渲染在视口外但保持正常文档流 */}
-      {shareAlbums.length > 0 && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '1080px',
-            visibility: 'hidden',
-            zIndex: -1,
-            pointerEvents: 'none',
-          }}
-        >
-          <ShareImage ref={shareRef} monthLabel={monthLabel} albums={shareAlbums} />
         </div>
       )}
 
