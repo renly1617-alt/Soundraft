@@ -28,17 +28,26 @@ function proxyImageUrl(src: string): string {
   return `https://soundraft-production.up.railway.app/api/image-proxy?url=${encodeURIComponent(src)}`
 }
 
-function preloadImage(src: string): Promise<void> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => resolve()
-    img.onerror = () => {
-      console.warn('[ShareImage] 预加载失败:', src.slice(0, 80))
-      resolve()
+async function urlToDataUrl(src: string): Promise<string | null> {
+  try {
+    const proxy = proxyImageUrl(src)
+    const resp = await fetch(proxy, { mode: 'cors' })
+    if (!resp.ok) {
+      console.warn('[ShareImage] proxy fetch failed', resp.status, src)
+      return null
     }
-    img.src = src
-  })
+    const blob = await resp.blob()
+    if (blob.size === 0) return null
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  } catch (err) {
+    console.warn('[ShareImage] urlToDataUrl error', src, err)
+    return null
+  }
 }
 
 export default function StatsPage() {
@@ -152,19 +161,21 @@ export default function StatsPage() {
     console.log('[ShareImage] 开始生成, 专辑数:', monthAlbums.length)
     setGenerating(true)
 
-    // 用代理 URL 替换原图 URL，避免 CORS 问题
-    const proxiedAlbums = monthAlbums.map(a => ({
-      ...a,
-      coverUrl: a.coverUrl ? proxyImageUrl(a.coverUrl) : '',
-    }))
+    // 先把所有封面转为 data URL
+    const albumsWithDataUrls = await Promise.all(
+      monthAlbums.map(async (a) => {
+        if (!a.coverUrl) return a
+        const dataUrl = await urlToDataUrl(a.coverUrl)
+        if (dataUrl) {
+          console.log('[ShareImage] 封面转 data URL 成功:', a.albumName)
+          return { ...a, coverUrl: dataUrl }
+        }
+        console.warn('[ShareImage] 封面转 data URL 失败:', a.albumName, a.coverUrl)
+        return a
+      })
+    )
 
-    // 预加载所有封面到浏览器缓存
-    const covers = proxiedAlbums.map(a => a.coverUrl).filter(Boolean)
-    console.log('[ShareImage] 预加载封面:', covers.length, '张')
-    await Promise.all(covers.map(preloadImage))
-    console.log('[ShareImage] 预加载完成')
-
-    setShareAlbums(proxiedAlbums)
+    setShareAlbums(albumsWithDataUrls)
   }, [monthAlbums])
 
   useEffect(() => {
@@ -173,7 +184,8 @@ export default function StatsPage() {
     let cancelled = false
 
     const doGenerate = async () => {
-      await new Promise(r => setTimeout(r, 400))
+      // 等待 DOM 渲染完成
+      await new Promise(r => setTimeout(r, 500))
 
       if (cancelled) return
 
@@ -187,12 +199,10 @@ export default function StatsPage() {
 
       try {
         console.log('[ShareImage] 调用 toPng...')
-        // 增加等待时间确保图片渲染完成
-        await new Promise(r => setTimeout(r, 600))
         const dataUrl = await toPng(shareRef.current, {
           quality: 1,
           pixelRatio: 2,
-          cacheBust: true,
+          skipAutoScale: true,
         })
         console.log('[ShareImage] toPng 完成, dataUrl 长度:', dataUrl.length)
         setGeneratedUrl(dataUrl)
@@ -496,20 +506,27 @@ export default function StatsPage() {
 
       {generating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: 1080,
-            transformOrigin: 'top left',
-            overflow: 'hidden',
-          }}>
-            <ShareImage ref={shareRef} monthLabel={monthLabel} albums={shareAlbums} />
-          </div>
           <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4 relative z-10">
             <Loader2 size={36} className="animate-spin text-[#fa2d48]" />
             <p className="text-[#1d1d1f] font-semibold">生成中...</p>
           </div>
+        </div>
+      )}
+
+      {/* 隐藏的分享海报组件 - 渲染在视口外但保持正常文档流 */}
+      {shareAlbums.length > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '1080px',
+            visibility: 'hidden',
+            zIndex: -1,
+            pointerEvents: 'none',
+          }}
+        >
+          <ShareImage ref={shareRef} monthLabel={monthLabel} albums={shareAlbums} />
         </div>
       )}
 
