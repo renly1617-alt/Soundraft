@@ -23,64 +23,38 @@ function monthKeyToLabel(key: string) {
   return `${y}年${parseInt(m)}月`
 }
 
-function proxyUrl(src: string): string {
-  if (src.startsWith('data:')) return src
-  return `/api/image-proxy?url=${encodeURIComponent(src)}`
-}
+async function fetchImageAsDataUrl(src: string): Promise<string | null> {
+  const proxyUrls = [
+    `https://soundraft-production.up.railway.app/api/image-proxy?url=${encodeURIComponent(src)}`,
+    src,
+  ]
 
-async function imageToDataUrl(src: string): Promise<string | null> {
-  const proxied = proxyUrl(src)
-
-  const doLoad = (url: string, cors: boolean): Promise<HTMLImageElement | null> => {
-    return new Promise((resolve) => {
-      const img = new Image()
-      if (cors) img.crossOrigin = 'anonymous'
-      img.onload = () => resolve(img)
-      img.onerror = () => resolve(null)
-      img.src = url
-    })
-  }
-
-  for (let pass = 1; pass <= 3; pass++) {
-    let img: HTMLImageElement | null = null
-    let url = pass === 1 ? proxied : (pass === 2 ? src : proxied)
-
-    img = await doLoad(url, true)
-    if (!img) {
-      img = await doLoad(url, false)
-    }
-
-    if (!img) {
-      if (pass === 3) {
-        console.warn('[ShareImage] 所有方式均无法加载封面:', src)
-        return null
+  for (const url of proxyUrls) {
+    try {
+      const resp = await fetch(url, { mode: 'cors' })
+      if (!resp.ok) {
+        console.warn('[ShareImage] fetch 失败', resp.status, url)
+        continue
       }
-      continue
-    }
-
-    try {
-      await img.decode()
-    } catch {
-      if (pass < 3) continue
-      return null
-    }
-
-    try {
-      const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      const ctx = canvas.getContext('2d')
-      if (!ctx) continue
-      ctx.drawImage(img, 0, 0)
-      return canvas.toDataURL('image/jpeg', 0.92)
-    } catch {
-      if (pass < 3) continue
-      console.warn('[ShareImage] Canvas tainted, URL:', src)
-      return null
+      const blob = await resp.blob()
+      if (blob.size === 0) {
+        console.warn('[ShareImage] blob 为空', url)
+        continue
+      }
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      console.log('[ShareImage] fetch 成功', url.slice(0, 80))
+      return dataUrl
+    } catch (err) {
+      console.warn('[ShareImage] fetch 异常', url.slice(0, 80), err)
     }
   }
 
-  console.warn('[ShareImage] 封面转换失败:', src)
+  console.warn('[ShareImage] 所有 fetch 方式均失败:', src)
   return null
 }
 
@@ -204,7 +178,7 @@ export default function StatsPage() {
 
     const dataUrls = await Promise.all(
       urlsToLoad.map(async ({ url, idx }) => {
-        const du = await imageToDataUrl(url)
+        const du = await fetchImageAsDataUrl(url)
         return { idx, dataUrl: du }
       })
     )
@@ -580,8 +554,20 @@ export default function StatsPage() {
               </button>
             </div>
             <div className="rounded-xl overflow-hidden bg-[#f2f2f6]">
-              <img src={generatedUrl} alt="分享图片预览" className="w-full" />
+              <img
+                src={generatedUrl}
+                alt="分享图片预览"
+                className="w-full"
+                onContextMenu={e => {
+                  e.preventDefault()
+                  const a = document.createElement('a')
+                  a.href = generatedUrl
+                  a.download = `Soundraft_${selectedMonthKey}.png`
+                  a.click()
+                }}
+              />
             </div>
+            <p className="text-xs text-[#8e8e93] text-center">长按图片可保存到本地</p>
             <div className="flex gap-3">
               <button
                 onClick={() => {
