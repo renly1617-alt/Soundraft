@@ -33,30 +33,83 @@ function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numb
   ctx.restore()
 }
 
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = []
+  let current = ''
+  for (const char of text) {
+    const test = current + char
+    if (ctx.measureText(test).width > maxWidth && current.length > 0) {
+      lines.push(current)
+      current = char
+    } else {
+      current = test
+    }
+  }
+  if (current) lines.push(current)
+  return lines.length > 0 ? lines : ['']
+}
+
 export async function drawShareImage(monthLabel: string, albums: Album[]): Promise<string> {
   const W = 1080
   const PAD = 64
+  const CARD_PAD = 40
   const COVER_SIZE = 110
   const ROW_GAP = 28
-  const LINE_H = 1
+  const NAME_FONT = '700 34px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
+  const ARTIST_FONT = '400 24px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
+  const NAME_LINE_H = 42
+  const ARTIST_H = 28
 
   // 预加载所有封面
   const coverImages = await Promise.all(
     albums.map(a => a.coverUrl ? loadImage(a.coverUrl) : Promise.resolve(null))
   )
 
-  // 计算高度
-  let contentH = 0
-  albums.forEach((a, i) => {
-    const hasInterpretation = !!a.interpretation
-    const rowH = COVER_SIZE + ROW_GAP * 2
-    const interpH = hasInterpretation ? 24 + 20 + 8 + 24 * 1.55 * Math.min(4, a.interpretation.split('\n').length) + 28 : 0
-    contentH += rowH + interpH + (i < albums.length - 1 ? LINE_H : 0)
+  // 创建临时 canvas 用于测量文本
+  const measureCanvas = document.createElement('canvas')
+  const measureCtx = measureCanvas.getContext('2d')!
+
+  // 布局参数
+  const rankX = PAD + CARD_PAD + 29
+  const coverX = rankX + 58
+  const textX = coverX + COVER_SIZE + 32
+  const starAreaW = 5 * 30 + 12 + 80
+  const starX = W - PAD - CARD_PAD - starAreaW
+  const textMaxW = starX - textX - 24
+
+  // 计算每行高度
+  interface RowInfo {
+    nameLines: string[]
+    rowH: number
+    hasInterpretation: boolean
+    interpH: number
+  }
+  const rowInfos: RowInfo[] = albums.map((album) => {
+    measureCtx.font = NAME_FONT
+    let nameLines = wrapText(measureCtx, album.albumName, textMaxW)
+    if (nameLines.length > 2) {
+      nameLines = nameLines.slice(0, 2)
+      nameLines[1] = nameLines[1].slice(0, -1) + '…'
+    }
+
+    const textH = nameLines.length * NAME_LINE_H + (nameLines.length > 1 ? 4 : 0) + ARTIST_H + 8
+    const rowH = Math.max(COVER_SIZE, textH) + ROW_GAP * 2
+
+    const hasInterpretation = !!album.interpretation
+    const interpH = hasInterpretation ? 24 + 20 + 8 + 24 * 1.55 * Math.min(4, album.interpretation.split('\n').length) + 28 : 0
+
+    return { nameLines, rowH, hasInterpretation, interpH }
   })
 
-  const headerH = 60 + 48 + 14 + 88 + 14 + 60 + 10 // 约 294
-  const footerH = 40 + 48 + 26 + 8 + 20 + 48 // 约 190
-  const cardPad = 12 + 28 // 40
+  // 计算总高度
+  let contentH = 0
+  rowInfos.forEach((info, i) => {
+    contentH += info.rowH + (i < albums.length - 1 ? 1 : 0) + info.interpH
+  })
+
+  const headerH = 60 + 48 + 14 + 88 + 14 + 60 + 10
+  const footerH = 40 + 48 + 26 + 8 + 20 + 48
+  const cardPad = CARD_PAD
   const H = headerH + cardPad + contentH + cardPad + footerH
 
   const canvas = document.createElement('canvas')
@@ -77,23 +130,23 @@ export async function drawShareImage(monthLabel: string, albums: Album[]): Promi
 
   // 标题
   ctx.fillStyle = 'rgba(255,255,255,0.8)'
-  ctx.font = '600 30px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif'
-  ctx.letterSpacing = '5px'
+  ctx.font = '600 30px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
   ctx.fillText('我的月度专辑收听记录', PAD, 60 + 14)
 
   // 月份
   ctx.fillStyle = '#ffffff'
-  ctx.font = '900 88px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif'
-  ctx.letterSpacing = '-2px'
+  ctx.font = '900 88px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
   ctx.fillText(monthLabel, PAD, 60 + 48 + 14 + 88)
 
   // 数量
   ctx.fillStyle = 'rgba(255,255,255,0.9)'
-  ctx.font = '900 60px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif'
-  ctx.fillText(String(albums.length), PAD, 60 + 48 + 14 + 88 + 14 + 60)
+  ctx.font = '900 60px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
+  const countStr = String(albums.length)
+  const countW = ctx.measureText(countStr).width
+  ctx.fillText(countStr, PAD, 60 + 48 + 14 + 88 + 14 + 60)
   ctx.fillStyle = 'rgba(255,255,255,0.75)'
-  ctx.font = '500 30px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif'
-  ctx.fillText('张专辑', PAD + String(albums.length).length * 36, 60 + 48 + 14 + 88 + 14 + 60)
+  ctx.font = '500 30px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
+  ctx.fillText('张专辑', PAD + countW + 12, 60 + 48 + 14 + 88 + 14 + 60)
 
   // 白色卡片
   const cardY = headerH - 20
@@ -112,18 +165,19 @@ export async function drawShareImage(monthLabel: string, albums: Album[]): Promi
   let y = cardY + 12
   albums.forEach((album, i) => {
     const coverImg = coverImages[i]
+    const { nameLines, rowH, hasInterpretation, interpH } = rowInfos[i]
     const isTop3 = i < 3
 
     // 排名数字
     ctx.fillStyle = isTop3 ? '#FA233B' : '#c7c7cc'
-    ctx.font = '800 38px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+    ctx.font = '800 38px "SF Pro Display", "Helvetica Neue", sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText(String(i + 1), PAD + 29, y + ROW_GAP + 55)
+    const rankMidY = y + rowH / 2
+    ctx.fillText(String(i + 1), rankX, rankMidY + 13)
     ctx.textAlign = 'left'
 
-    // 封面
-    const coverX = PAD + 58 + 32
-    const coverY = y + ROW_GAP
+    // 封面 - 垂直居中
+    const coverY = y + (rowH - COVER_SIZE) / 2
     if (coverImg) {
       ctx.save()
       ctx.beginPath()
@@ -137,79 +191,84 @@ export async function drawShareImage(monthLabel: string, albums: Album[]): Promi
       ctx.roundRect(coverX, coverY, COVER_SIZE, COVER_SIZE, 14)
       ctx.fill()
       ctx.fillStyle = '#c7c7cc'
-      ctx.font = '800 40px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+      ctx.font = '800 40px "SF Pro Display", "Helvetica Neue", sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(album.albumName.charAt(0), coverX + COVER_SIZE / 2, coverY + COVER_SIZE / 2 + 14)
       ctx.textAlign = 'left'
     }
 
-    // 专辑名
-    const textX = coverX + COVER_SIZE + 32
+    // 文本区域垂直居中计算
+    const textTotalH = nameLines.length * NAME_LINE_H + (nameLines.length > 1 ? 4 : 0) + ARTIST_H + 8
+    const textStartY = y + (rowH - textTotalH) / 2
+
+    // 专辑名（支持两行）
     ctx.fillStyle = '#1d1d1f'
-    ctx.font = '700 34px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif'
-    const maxTextW = W - PAD - 60 - textX - 200
-    const albumName = album.albumName
-    let line1 = albumName
-    let line2 = ''
-    if (ctx.measureText(albumName).width > maxTextW) {
-      // 简单截断到2行
-      let cut = albumName
-      while (ctx.measureText(cut + '…').width > maxTextW && cut.length > 0) {
-        cut = cut.slice(0, -1)
-      }
-      line1 = cut + '…'
+    ctx.font = NAME_FONT
+    ctx.fillText(nameLines[0], textX, textStartY + 34)
+    if (nameLines.length > 1) {
+      ctx.fillText(nameLines[1], textX, textStartY + 34 + NAME_LINE_H)
     }
-    ctx.fillText(line1, textX, coverY + 38)
-    if (line2) ctx.fillText(line2, textX, coverY + 38 + 34 * 1.25)
 
     // 艺术家
+    const artistY = textStartY + nameLines.length * NAME_LINE_H + (nameLines.length > 1 ? 4 : 0)
     ctx.fillStyle = '#8e8e93'
-    ctx.font = '400 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif'
-    ctx.fillText(album.artistName, textX, coverY + 38 + 34 + 10)
+    ctx.font = ARTIST_FONT
+    const artistText = album.artistName
+    const artistMaxW = textMaxW
+    let displayArtist = artistText
+    if (ctx.measureText(artistText).width > artistMaxW) {
+      let cut = artistText
+      while (ctx.measureText(cut + '…').width > artistMaxW && cut.length > 0) {
+        cut = cut.slice(0, -1)
+      }
+      displayArtist = cut + '…'
+    }
+    ctx.fillText(displayArtist, textX, artistY + ARTIST_H)
 
-    // 评分星星
+    // 评分星星 - 右对齐，垂直居中于文本区域
     if (album.averageScore > 0) {
-      const starX = W - PAD - 60 - 200
-      const starY = coverY + 20
+      const starMidY = y + rowH / 2
+      const starSize = 13
+      const starGap = 30
       const rounded = Math.round(album.averageScore)
       for (let s = 0; s < 5; s++) {
-        drawStar(ctx, starX + s * 28, starY, 12, s < rounded)
+        drawStar(ctx, starX + s * starGap, starMidY, starSize, s < rounded)
       }
       ctx.fillStyle = '#FA233B'
-      ctx.font = '800 32px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
-      ctx.fillText(album.averageScore.toFixed(1), starX + 5 * 28 + 12, starY + 10)
+      ctx.font = '800 32px "SF Pro Display", "Helvetica Neue", sans-serif'
+      ctx.fillText(album.averageScore.toFixed(1), starX + 5 * starGap + 12, starMidY + 10)
     }
 
-    y += COVER_SIZE + ROW_GAP * 2
+    y += rowH
 
     // 感想
-    if (album.interpretation) {
+    if (hasInterpretation && album.interpretation) {
       const interpX = textX - 32
       const interpY = y
-      const interpW = W - PAD - 60 - interpX
-      const interpH = 24 + 20 + 8 + 80 + 28
+      const interpW = W - PAD - CARD_PAD - interpX
+      const actualInterpH = 24 + 20 + 8 + 80 + 28
 
       ctx.fillStyle = '#fef2f2'
       ctx.beginPath()
-      ctx.roundRect(interpX, interpY, interpW, interpH, 14)
+      ctx.roundRect(interpX, interpY, interpW, actualInterpH, 14)
       ctx.fill()
 
       ctx.fillStyle = '#FA233B'
-      ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+      ctx.font = '600 20px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
       ctx.fillText('我的感想', interpX + 24, interpY + 24 + 20)
 
       ctx.fillStyle = '#3a3a3c'
-      ctx.font = '400 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif'
-      const lines = album.interpretation.slice(0, 80)
-      ctx.fillText(lines, interpX + 24, interpY + 24 + 20 + 8 + 24)
+      ctx.font = '400 24px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
+      const interpLines = album.interpretation.slice(0, 80)
+      ctx.fillText(interpLines, interpX + 24, interpY + 24 + 20 + 8 + 24)
 
-      y += interpH + 12
+      y += actualInterpH + 12
     }
 
     // 分割线
     if (i < albums.length - 1) {
       ctx.fillStyle = '#f0f0f2'
-      ctx.fillRect(textX - 32, y, W - PAD - 60 - textX + 32, 1)
+      ctx.fillRect(textX - 32, y, W - PAD - CARD_PAD - textX + 32, 1)
       y += 1
     }
   })
@@ -217,14 +276,15 @@ export async function drawShareImage(monthLabel: string, albums: Album[]): Promi
   // 底部
   const footerY = H - 48 - 26 - 8 - 20 - 48
   ctx.fillStyle = '#c7c7cc'
-  ctx.font = '600 26px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+  ctx.font = '600 26px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
   ctx.textAlign = 'center'
-  ctx.letterSpacing = '4px'
   ctx.fillText('由 Soundraft 记录', W / 2, footerY + 48)
 
   ctx.fillStyle = '#d1d1d6'
-  ctx.font = '400 20px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
+  ctx.font = '400 20px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
+  ctx.textAlign = 'center'
   ctx.fillText('记录我这个月听过的声音', W / 2, footerY + 48 + 26 + 8)
+  ctx.textAlign = 'left'
 
   return canvas.toDataURL('image/png', 1.0)
 }
