@@ -23,39 +23,22 @@ function monthKeyToLabel(key: string) {
   return `${y}年${parseInt(m)}月`
 }
 
-async function fetchImageAsDataUrl(src: string): Promise<string | null> {
-  const proxyUrls = [
-    `https://soundraft-production.up.railway.app/api/image-proxy?url=${encodeURIComponent(src)}`,
-    src,
-  ]
+function proxyImageUrl(src: string): string {
+  if (src.startsWith('data:')) return src
+  return `https://soundraft-production.up.railway.app/api/image-proxy?url=${encodeURIComponent(src)}`
+}
 
-  for (const url of proxyUrls) {
-    try {
-      const resp = await fetch(url, { mode: 'cors' })
-      if (!resp.ok) {
-        console.warn('[ShareImage] fetch 失败', resp.status, url)
-        continue
-      }
-      const blob = await resp.blob()
-      if (blob.size === 0) {
-        console.warn('[ShareImage] blob 为空', url)
-        continue
-      }
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
-      })
-      console.log('[ShareImage] fetch 成功', url.slice(0, 80))
-      return dataUrl
-    } catch (err) {
-      console.warn('[ShareImage] fetch 异常', url.slice(0, 80), err)
+function preloadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve()
+    img.onerror = () => {
+      console.warn('[ShareImage] 预加载失败:', src.slice(0, 80))
+      resolve()
     }
-  }
-
-  console.warn('[ShareImage] 所有 fetch 方式均失败:', src)
-  return null
+    img.src = src
+  })
 }
 
 export default function StatsPage() {
@@ -166,43 +149,22 @@ export default function StatsPage() {
       alert('该月份没有专辑记录')
       return
     }
-    console.log('[ShareImage] 开始转换封面为 data URL, 专辑数:', monthAlbums.length)
+    console.log('[ShareImage] 开始生成, 专辑数:', monthAlbums.length)
     setGenerating(true)
 
-    const urlsToLoad: { url: string; idx: number }[] = []
-    monthAlbums.forEach((a, i) => {
-      if (a.coverUrl) urlsToLoad.push({ url: a.coverUrl, idx: i })
-    })
+    // 用代理 URL 替换原图 URL，避免 CORS 问题
+    const proxiedAlbums = monthAlbums.map(a => ({
+      ...a,
+      coverUrl: a.coverUrl ? proxyImageUrl(a.coverUrl) : '',
+    }))
 
-    console.log('[ShareImage] 需转换封面:', urlsToLoad.length, '张')
+    // 预加载所有封面到浏览器缓存
+    const covers = proxiedAlbums.map(a => a.coverUrl).filter(Boolean)
+    console.log('[ShareImage] 预加载封面:', covers.length, '张')
+    await Promise.all(covers.map(preloadImage))
+    console.log('[ShareImage] 预加载完成')
 
-    // 串行处理，避免并发请求被限流
-    const dataUrls: { idx: number; dataUrl: string | null }[] = []
-    for (const { url, idx } of urlsToLoad) {
-      const du = await fetchImageAsDataUrl(url)
-      dataUrls.push({ idx, dataUrl: du })
-      if (du) {
-        console.log('[ShareImage] 封面转换成功', idx)
-      } else {
-        console.warn('[ShareImage] 封面转换失败', idx, url)
-      }
-    }
-
-    let success = 0
-    let fail = 0
-    const albumsWithDataUrls = monthAlbums.map((a, i) => {
-      const match = dataUrls.find(d => d.idx === i)
-      if (match?.dataUrl) {
-        success++
-        return { ...a, coverUrl: match.dataUrl }
-      }
-      if (a.coverUrl) fail++
-      return a
-    })
-
-    console.log('[ShareImage] 封面转换完成: 成功', success, '失败', fail)
-
-    setShareAlbums(albumsWithDataUrls)
+    setShareAlbums(proxiedAlbums)
   }, [monthAlbums])
 
   useEffect(() => {
@@ -225,10 +187,12 @@ export default function StatsPage() {
 
       try {
         console.log('[ShareImage] 调用 toPng...')
+        // 增加等待时间确保图片渲染完成
+        await new Promise(r => setTimeout(r, 600))
         const dataUrl = await toPng(shareRef.current, {
           quality: 1,
-          pixelRatio: 1,
-          skipAutoScale: true,
+          pixelRatio: 2,
+          cacheBust: true,
         })
         console.log('[ShareImage] toPng 完成, dataUrl 长度:', dataUrl.length)
         setGeneratedUrl(dataUrl)
