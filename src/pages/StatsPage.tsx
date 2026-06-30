@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useCallback } from 'react'
 import { ArrowLeft, Disc3, Music2, TrendingUp, BarChart3, Star, ChevronRight, Share2, X, Loader2, Download } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAlbumStore } from '@/stores/albumStore'
@@ -13,6 +13,25 @@ const GENRE_COLORS = [
 ]
 
 const MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+
+function toMonthKey(dateStr: string) {
+  return dateStr.slice(0, 7)
+}
+
+function monthKeyToLabel(key: string) {
+  const [y, m] = key.split('-')
+  return `${y}年${parseInt(m)}月`
+}
+
+function preloadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve()
+    img.onerror = () => resolve()
+    img.src = src
+  })
+}
 
 export default function StatsPage() {
   const navigate = useNavigate()
@@ -71,26 +90,30 @@ export default function StatsPage() {
   )
 
   const availableMonths = useMemo(() => {
-    const months = new Set(albums.map(a => a.listenDate))
+    const months = new Set<string>()
+    albums.forEach(a => {
+      if (a.listenDate && a.listenDate.length >= 7) {
+        months.add(toMonthKey(a.listenDate))
+      }
+    })
     return Array.from(months).sort((a, b) => b.localeCompare(a))
   }, [albums])
 
   const [showMonthSelector, setShowMonthSelector] = useState(false)
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const shareRef = useRef<HTMLDivElement>(null)
 
   const monthAlbums: Album[] = useMemo(() => {
-    if (!selectedMonth) return []
-    return albums.filter(a => a.listenDate === selectedMonth)
-  }, [albums, selectedMonth])
+    if (!selectedMonthKey) return []
+    return albums.filter(a => toMonthKey(a.listenDate) === selectedMonthKey)
+  }, [albums, selectedMonthKey])
 
   const monthLabel = useMemo(() => {
-    if (!selectedMonth) return ''
-    const [y, m] = selectedMonth.split('-')
-    return `${y}年${parseInt(m)}月`
-  }, [selectedMonth])
+    if (!selectedMonthKey) return ''
+    return monthKeyToLabel(selectedMonthKey)
+  }, [selectedMonthKey])
 
   const handleShareClick = () => {
     if (availableMonths.length === 0) {
@@ -101,16 +124,18 @@ export default function StatsPage() {
     setGeneratedUrl(null)
   }
 
-  const handleSelectMonth = async (month: string) => {
-    setSelectedMonth(month)
+  const handleSelectMonth = (monthKey: string) => {
+    setSelectedMonthKey(monthKey)
     setShowMonthSelector(false)
   }
 
-  const generateImage = async () => {
+  const generateImage = useCallback(async () => {
     if (!shareRef.current) return
     setGenerating(true)
     try {
-      await new Promise(r => setTimeout(r, 300))
+      const covers = monthAlbums.map(a => a.coverUrl).filter(Boolean) as string[]
+      await Promise.all(covers.map(preloadImage))
+      await new Promise(r => setTimeout(r, 200))
       const dataUrl = await toPng(shareRef.current, {
         quality: 1,
         pixelRatio: 1,
@@ -123,12 +148,12 @@ export default function StatsPage() {
     } finally {
       setGenerating(false)
     }
-  }
+  }, [monthAlbums])
 
   const handleShare = async () => {
     if (!generatedUrl) return
     const blob = await (await fetch(generatedUrl)).blob()
-    const file = new File([blob], `Soundraft_${selectedMonth}.png`, { type: 'image/png' })
+    const file = new File([blob], `Soundraft_${selectedMonthKey}.png`, { type: 'image/png' })
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: '月度专辑收听记录' })
@@ -138,13 +163,13 @@ export default function StatsPage() {
     } else {
       const a = document.createElement('a')
       a.href = generatedUrl
-      a.download = `Soundraft_${selectedMonth}.png`
+      a.download = `Soundraft_${selectedMonthKey}.png`
       a.click()
     }
   }
 
   const handleClosePreview = () => {
-    setSelectedMonth(null)
+    setSelectedMonthKey(null)
     setGeneratedUrl(null)
   }
 
@@ -364,16 +389,15 @@ export default function StatsPage() {
               </button>
             </div>
             <div className="space-y-2 max-h-72 overflow-y-auto">
-              {availableMonths.map(month => {
-                const [y, m] = month.split('-')
-                const count = albums.filter(a => a.listenDate === month).length
+              {availableMonths.map(monthKey => {
+                const count = albums.filter(a => toMonthKey(a.listenDate) === monthKey).length
                 return (
                   <button
-                    key={month}
-                    onClick={() => handleSelectMonth(month)}
+                    key={monthKey}
+                    onClick={() => handleSelectMonth(monthKey)}
                     className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-[#f2f2f6] transition-colors text-left"
                   >
-                    <span className="text-[#1d1d1f] font-semibold">{y}年{parseInt(m)}月</span>
+                    <span className="text-[#1d1d1f] font-semibold">{monthKeyToLabel(monthKey)}</span>
                     <span className="text-sm text-[#8e8e93]">{count} 张专辑</span>
                   </button>
                 )
@@ -383,7 +407,7 @@ export default function StatsPage() {
         </div>
       )}
 
-      {selectedMonth && !generatedUrl && !generating && (
+      {selectedMonthKey && !generatedUrl && !generating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={handleClosePreview}>
           <div className="bg-white rounded-2xl p-6 mx-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
             <p className="text-[#1d1d1f] text-base font-semibold mb-1">生成分享图片</p>
@@ -408,7 +432,17 @@ export default function StatsPage() {
 
       {generating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4">
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: 1080,
+            transformOrigin: 'top left',
+            overflow: 'hidden',
+          }}>
+            <ShareImage ref={shareRef} monthLabel={monthLabel} albums={monthAlbums} />
+          </div>
+          <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4 relative z-10">
             <Loader2 size={36} className="animate-spin text-[#fa2d48]" />
             <p className="text-[#1d1d1f] font-semibold">正在生成图片...</p>
           </div>
@@ -432,7 +466,7 @@ export default function StatsPage() {
                 onClick={() => {
                   const a = document.createElement('a')
                   a.href = generatedUrl
-                  a.download = `Soundraft_${selectedMonth}.png`
+                  a.download = `Soundraft_${selectedMonthKey}.png`
                   a.click()
                 }}
                 className="flex-1 h-11 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-semibold hover:bg-[#e5e5ea] transition-colors flex items-center justify-center gap-2"
@@ -449,12 +483,6 @@ export default function StatsPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {selectedMonth && (
-        <div ref={shareRef} style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1 }}>
-          <ShareImage month={selectedMonth} monthLabel={monthLabel} albums={monthAlbums} />
         </div>
       )}
     </div>

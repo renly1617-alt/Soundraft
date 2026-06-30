@@ -1,7 +1,7 @@
+import { forwardRef } from 'react'
 import type { Album } from '@/types'
 
 interface ShareImageProps {
-  month: string
   monthLabel: string
   albums: Album[]
 }
@@ -19,18 +19,124 @@ function StarRow({ score }: { score: number }) {
   )
 }
 
-export default function ShareImage({ month, monthLabel, albums }: ShareImageProps) {
+function AlbumCard({ album }: { album: Album }) {
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.12)',
+      borderRadius: 20,
+      padding: 24,
+      display: 'flex',
+      gap: 20,
+      width: '100%',
+      boxSizing: 'border-box',
+    }}>
+      <div style={{
+        width: 140,
+        height: 140,
+        borderRadius: 14,
+        overflow: 'hidden',
+        flexShrink: 0,
+        background: 'rgba(255,255,255,0.15)',
+      }}>
+        {album.coverUrl ? (
+          <img
+            src={album.coverUrl}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            crossOrigin="anonymous"
+          />
+        ) : (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 40,
+            fontWeight: 800,
+            color: 'rgba(255,255,255,0.4)',
+          }}>
+            {album.albumName.charAt(0)}
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        minWidth: 0,
+      }}>
+        <p style={{
+          fontSize: 22,
+          fontWeight: 700,
+          margin: '0 0 4px 0',
+          lineHeight: 1.3,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          wordBreak: 'break-word',
+        }}>
+          {album.albumName}
+        </p>
+        <p style={{
+          fontSize: 17,
+          fontWeight: 500,
+          opacity: 0.8,
+          margin: '0 0 12px 0',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {album.artistName}
+        </p>
+
+        {album.averageScore > 0 && (
+          <div style={{ marginBottom: album.interpretation ? 10 : 0 }}>
+            <StarRow score={album.averageScore} />
+          </div>
+        )}
+
+        {album.interpretation && (
+          <p style={{
+            fontSize: 15,
+            fontWeight: 400,
+            opacity: 0.7,
+            margin: 0,
+            lineHeight: 1.5,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            wordBreak: 'break-word',
+          }}>
+            {album.interpretation}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const ShareImage = forwardRef<HTMLDivElement, ShareImageProps>(function ShareImage({ monthLabel, albums }, ref) {
   const total = albums.length
 
   return (
-    <div style={{
-      width: 1080,
-      background: 'linear-gradient(180deg, #FA233B 0%, #C9182B 100%)',
-      padding: '60px 48px 48px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif',
-      color: '#ffffff',
-      minHeight: 100,
-    }}>
+    <div
+      ref={ref}
+      style={{
+        width: 1080,
+        background: 'linear-gradient(180deg, #FA233B 0%, #C9182B 100%)',
+        padding: '60px 48px 48px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif',
+        color: '#ffffff',
+        boxSizing: 'border-box',
+      }}
+    >
       <div style={{ marginBottom: 40 }}>
         <p style={{
           fontSize: 24,
@@ -66,106 +172,7 @@ export default function ShareImage({ month, monthLabel, albums }: ShareImageProp
         gap: 24,
       }}>
         {albums.map((album) => (
-          <div
-            key={album.id}
-            style={{
-              background: 'rgba(255,255,255,0.12)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: 20,
-              padding: 24,
-              display: 'flex',
-              gap: 20,
-            }}
-          >
-            <div style={{
-              width: 140,
-              height: 140,
-              borderRadius: 14,
-              overflow: 'hidden',
-              flexShrink: 0,
-              background: 'rgba(255,255,255,0.15)',
-            }}>
-              {album.coverUrl ? (
-                <img
-                  src={album.coverUrl}
-                  alt={album.albumName}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <div style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 40,
-                  fontWeight: 800,
-                  color: 'rgba(255,255,255,0.4)',
-                }}>
-                  {album.albumName.charAt(0)}
-                </div>
-              )}
-            </div>
-
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              minWidth: 0,
-            }}>
-              <p style={{
-                fontSize: 22,
-                fontWeight: 700,
-                margin: '0 0 4px 0',
-                lineHeight: 1.3,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                wordBreak: 'break-word',
-              }}>
-                {album.albumName}
-              </p>
-              <p style={{
-                fontSize: 17,
-                fontWeight: 500,
-                opacity: 0.8,
-                margin: '0 0 12px 0',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}>
-                {album.artistName}
-              </p>
-
-              {album.averageScore > 0 && (
-                <div style={{ marginBottom: album.interpretation ? 10 : 0 }}>
-                  <StarRow score={album.averageScore} />
-                </div>
-              )}
-
-              {album.interpretation && (
-                <p style={{
-                  fontSize: 15,
-                  fontWeight: 400,
-                  opacity: 0.7,
-                  margin: 0,
-                  lineHeight: 1.5,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  wordBreak: 'break-word',
-                }}>
-                  {album.interpretation}
-                </p>
-              )}
-            </div>
-          </div>
+          <AlbumCard key={album.id} album={album} />
         ))}
       </div>
 
@@ -187,4 +194,6 @@ export default function ShareImage({ month, monthLabel, albums }: ShareImageProp
       </div>
     </div>
   )
-}
+})
+
+export default ShareImage
