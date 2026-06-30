@@ -11,13 +11,13 @@ router.get('/', async (req, res) => {
     }
 
     const parsed = new URL(url)
-    const allowedHosts = [
-      'p1.music.126.net', 'p2.music.126.net', 'p3.music.126.net', 'p4.music.126.net',
-      'y.qq.com', 'c.y.qq.com', 'imgcache.qq.com',
-      'music.126.net',
+    const allowedPatterns = [
+      /^(p[1-4]\.)?music\.126\.net$/i,
+      /^.*\.qq\.com$/i,
+      /^.*\.qpic\.cn$/i,
     ]
 
-    const isAllowed = allowedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))
+    const isAllowed = allowedPatterns.some(p => p.test(parsed.hostname))
     if (!isAllowed) {
       res.status(403).json({ error: 'Host not allowed' })
       return

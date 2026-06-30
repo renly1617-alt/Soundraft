@@ -9,15 +9,15 @@ interface ShareImageProps {
 function StarDisplay({ score }: { score: number }) {
   const rounded = Math.round(score)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 3 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 4 }}>
         {[1, 2, 3, 4, 5].map(n => (
-          <svg key={n} width="24" height="24" viewBox="0 0 24 24" fill={n <= rounded ? '#FA233B' : 'none'} stroke={n <= rounded ? '#FA233B' : '#d1d1d6'} strokeWidth="1.5">
+          <svg key={n} width="32" height="32" viewBox="0 0 24 24" fill={n <= rounded ? '#FA233B' : 'none'} stroke={n <= rounded ? '#FA233B' : '#d1d1d6'} strokeWidth="1.5">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" />
           </svg>
         ))}
       </div>
-      <span style={{ fontSize: 24, fontWeight: 800, color: '#FA233B', minWidth: 44, textAlign: 'right' }}>{score.toFixed(1)}</span>
+      <span style={{ fontSize: 32, fontWeight: 800, color: '#FA233B', minWidth: 56, textAlign: 'right' }}>{score.toFixed(1)}</span>
     </div>
   )
 }

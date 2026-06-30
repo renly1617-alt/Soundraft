@@ -176,12 +176,17 @@ export default function StatsPage() {
 
     console.log('[ShareImage] 需转换封面:', urlsToLoad.length, '张')
 
-    const dataUrls = await Promise.all(
-      urlsToLoad.map(async ({ url, idx }) => {
-        const du = await fetchImageAsDataUrl(url)
-        return { idx, dataUrl: du }
-      })
-    )
+    // 串行处理，避免并发请求被限流
+    const dataUrls: { idx: number; dataUrl: string | null }[] = []
+    for (const { url, idx } of urlsToLoad) {
+      const du = await fetchImageAsDataUrl(url)
+      dataUrls.push({ idx, dataUrl: du })
+      if (du) {
+        console.log('[ShareImage] 封面转换成功', idx)
+      } else {
+        console.warn('[ShareImage] 封面转换失败', idx, url)
+      }
+    }
 
     let success = 0
     let fail = 0
