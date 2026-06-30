@@ -12,6 +12,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import authRoutes from './routes/auth.js'
 import albumRoutes from './routes/album.js'
+import imageProxyRoutes from './routes/imageProxy.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -24,6 +25,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 app.use('/api/auth', authRoutes)
 app.use('/api/album', albumRoutes)
+app.use('/api/image-proxy', imageProxyRoutes)
 
 const distPath = path.join(__dirname, '..', 'dist')
 app.use(express.static(distPath))

@@ -23,35 +23,65 @@ function monthKeyToLabel(key: string) {
   return `${y}年${parseInt(m)}月`
 }
 
-function imageToDataUrl(src: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      img.decode().then(() => {
-        try {
-          const canvas = document.createElement('canvas')
-          canvas.width = img.naturalWidth
-          canvas.height = img.naturalHeight
-          const ctx = canvas.getContext('2d')
-          if (!ctx) { resolve(null); return }
-          ctx.drawImage(img, 0, 0)
-          resolve(canvas.toDataURL('image/jpeg', 0.92))
-        } catch {
-          console.warn('[ShareImage] canvas 转换失败, URL:', src)
-          resolve(null)
-        }
-      }).catch(() => {
-        console.warn('[ShareImage] decode 失败, URL:', src)
-        resolve(null)
-      })
+function proxyUrl(src: string): string {
+  if (src.startsWith('data:')) return src
+  return `/api/image-proxy?url=${encodeURIComponent(src)}`
+}
+
+async function imageToDataUrl(src: string): Promise<string | null> {
+  const proxied = proxyUrl(src)
+
+  const doLoad = (url: string, cors: boolean): Promise<HTMLImageElement | null> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      if (cors) img.crossOrigin = 'anonymous'
+      img.onload = () => resolve(img)
+      img.onerror = () => resolve(null)
+      img.src = url
+    })
+  }
+
+  for (let pass = 1; pass <= 3; pass++) {
+    let img: HTMLImageElement | null = null
+    let url = pass === 1 ? proxied : (pass === 2 ? src : proxied)
+
+    img = await doLoad(url, true)
+    if (!img) {
+      img = await doLoad(url, false)
     }
-    img.onerror = () => {
-      console.warn('[ShareImage] 封面加载失败, URL:', src)
-      resolve(null)
+
+    if (!img) {
+      if (pass === 3) {
+        console.warn('[ShareImage] 所有方式均无法加载封面:', src)
+        return null
+      }
+      continue
     }
-    img.src = src
-  })
+
+    try {
+      await img.decode()
+    } catch {
+      if (pass < 3) continue
+      return null
+    }
+
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) continue
+      ctx.drawImage(img, 0, 0)
+      return canvas.toDataURL('image/jpeg', 0.92)
+    } catch {
+      if (pass < 3) continue
+      console.warn('[ShareImage] Canvas tainted, URL:', src)
+      return null
+    }
+  }
+
+  console.warn('[ShareImage] 封面转换失败:', src)
+  return null
 }
 
 export default function StatsPage() {
