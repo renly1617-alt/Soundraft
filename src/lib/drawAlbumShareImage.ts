@@ -190,7 +190,7 @@ export async function drawAlbumShareImage(album: Album): Promise<string> {
   const FONT_SECTION = `700 34px ${FONT_FAMILY}`
   const FONT_SONG_NUM = `500 24px ${FONT_FAMILY}`
   const FONT_SONG_NAME = `400 28px ${FONT_FAMILY}`
-  const SONG_ROW_H = 58
+  const SONG_ROW_H = 60
   const NUM_AREA_W = 44
 
   if (album.tracks.length > 0) {
@@ -304,12 +304,13 @@ export async function drawAlbumShareImage(album: Album): Promise<string> {
     const starSize = 16
     const starGap = 30
     const starCount = Math.round(album.averageScore)
+    const starBaseX = infoX + starSize
     for (let s = 0; s < starCount; s++) {
-      drawFilledStar(ctx, infoX + s * starGap, infoY + 18, starSize)
+      drawFilledStar(ctx, starBaseX + s * starGap, infoY + 18, starSize)
     }
     ctx.fillStyle = COLORS.textPrimary
     ctx.font = FONT_RATING
-    ctx.fillText(album.averageScore.toFixed(1), infoX + starCount * starGap + 14, infoY + 26)
+    ctx.fillText(album.averageScore.toFixed(1), starBaseX + starCount * starGap + 14, infoY + 26)
   }
 
   y += infoCardH + CARD_GAP
@@ -325,42 +326,54 @@ export async function drawAlbumShareImage(album: Album): Promise<string> {
     ctx.fillText('歌曲列表', songsX, sy + 34)
     sy += 34 + 24
 
+    // 标题下方分割线
+    ctx.fillStyle = COLORS.divider
+    ctx.fillRect(songsX, sy, cardInnerW, 1)
+    sy += 1
+
     const MAX_TRACK_W = cardInnerW - NUM_AREA_W - 16 - 140
+    const nameX = songsX + NUM_AREA_W + 16
+    const trackStarX = songsX + cardInnerW - 140
+    const trackStarSize = 11
+    const trackStarGap = 22
+
+    ctx.textBaseline = 'middle'
+
     for (let i = 0; i < album.tracks.length; i++) {
       const track = album.tracks[i]
-
-      // 分割线
-      if (i > 0) {
-        ctx.fillStyle = COLORS.divider
-        ctx.fillRect(songsX, sy, cardInnerW, 1)
-        sy += 1
-      }
+      const rowMidY = sy + SONG_ROW_H / 2
 
       // 序号
       ctx.fillStyle = COLORS.textTertiary
       ctx.font = FONT_SONG_NUM
       ctx.textAlign = 'right'
-      ctx.fillText(String(i + 1), songsX + NUM_AREA_W, sy + 28)
+      ctx.fillText(String(i + 1), songsX + NUM_AREA_W, rowMidY)
       ctx.textAlign = 'left'
 
       // 歌曲名
       ctx.fillStyle = COLORS.textPrimary
       ctx.font = FONT_SONG_NAME
-      const nameX = songsX + NUM_AREA_W + 16
-      ctx.fillText(truncateText(ctx, track.name, MAX_TRACK_W), nameX, sy + 28)
+      ctx.fillText(truncateText(ctx, track.name, MAX_TRACK_W), nameX, rowMidY)
 
       // 评分星星
       if (track.score > 0) {
-        const trackStarX = songsX + cardInnerW - 140
-        const trackStarSize = 11
-        const trackStarGap = 22
+        const starCY = rowMidY
         for (let s = 0; s < track.score; s++) {
-          drawFilledStar(ctx, trackStarX + s * trackStarGap, sy + 14, trackStarSize)
+          drawFilledStar(ctx, trackStarX + s * trackStarGap, starCY, trackStarSize)
         }
       }
 
       sy += SONG_ROW_H
+
+      // 行间分割线
+      if (i < album.tracks.length - 1) {
+        ctx.fillStyle = COLORS.divider
+        ctx.fillRect(songsX, sy, cardInnerW, 1)
+        sy += 1
+      }
     }
+
+    ctx.textBaseline = 'alphabetic'
 
     y += songsCardH + CARD_GAP
   }
