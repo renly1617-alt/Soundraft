@@ -1,7 +1,27 @@
 import type { Album } from '@/types'
 
-const FONT_STACK = '"PingFang SC", "SF Pro Display", "Hiragino Sans", "Noto Sans JP", "Helvetica Neue", sans-serif'
-const FONT_STACK_NUM = '"SF Pro Display", "Helvetica Neue", sans-serif'
+const FONT_FAMILY =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans", "Noto Sans JP", sans-serif'
+
+const COLORS = {
+  background: '#F4F4F8',
+  card: '#FFFFFF',
+  textPrimary: '#1C1C1E',
+  textSecondary: '#8E8E93',
+  textTertiary: '#C7C7CC',
+  divider: '#E5E5EA',
+  red: '#FF2D55',
+  tagBg: '#FFEAF0',
+  tagText: '#FF2D55',
+  noteBg: '#F8F8FA',
+}
+
+const CANVAS_WIDTH = 750
+const PAGE_PADDING = 48
+const CARD_WIDTH = CANVAS_WIDTH - PAGE_PADDING * 2
+const CARD_RADIUS = 28
+const CARD_PADDING = 44
+const CARD_GAP = 40
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
@@ -33,7 +53,6 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
       i++
     }
   }
-
   const lines: string[] = []
   let currentLine = ''
   for (const token of tokens) {
@@ -72,275 +91,310 @@ function drawFilledStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r
     else ctx.lineTo(x, y)
   }
   ctx.closePath()
-  ctx.fillStyle = '#FA233B'
+  ctx.fillStyle = COLORS.red
   ctx.fill()
   ctx.restore()
 }
 
+function drawRoundedImage(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  ctx.save()
+  ctx.beginPath()
+  ctx.roundRect(x, y, w, h, r)
+  ctx.clip()
+  ctx.drawImage(img, x, y, w, h)
+  ctx.restore()
+}
+
+function drawCard(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  ctx.fillStyle = COLORS.card
+  ctx.beginPath()
+  ctx.roundRect(x, y, w, h, CARD_RADIUS)
+  ctx.fill()
+  ctx.shadowColor = 'rgba(0,0,0,0.04)'
+  ctx.shadowBlur = 24
+  ctx.shadowOffsetY = 2
+  ctx.fill()
+  ctx.shadowColor = 'transparent'
+}
+
 export async function drawAlbumShareImage(album: Album): Promise<string> {
-  const W = 750
-  const CARD_MARGIN = 28
-  const CARD_W = W - CARD_MARGIN * 2
-  const CARD_PAD = 36
-
-  const COVER_SIZE = 164
-  const COVER_RADIUS = 16
-
-  const FONT_NAME_BOLD = `800 48px ${FONT_STACK}`
-  const FONT_ARTIST = `500 28px ${FONT_STACK}`
-  const FONT_META = `400 24px ${FONT_STACK}`
-  const FONT_SECTION = `700 30px ${FONT_STACK}`
-  const FONT_TRACK = `400 26px ${FONT_STACK}`
-  const FONT_TRACK_NUM = `500 22px ${FONT_STACK}`
-  const FONT_BODY = `400 24px ${FONT_STACK}`
-  const FONT_SCORE = `800 32px ${FONT_STACK_NUM}`
-  const FONT_TAG = `500 20px ${FONT_STACK}`
-
   const coverImg = album.coverUrl ? await loadImage(album.coverUrl) : null
   const hasInterpretation = !!(album.interpretation && album.interpretation.trim())
+
+  const cardInnerW = CARD_WIDTH - CARD_PADDING * 2
+  const coverSize = cardInnerW
 
   const measureCanvas = document.createElement('canvas')
   const measureCtx = measureCanvas.getContext('2d')!
 
-  const contentW = CARD_W - CARD_PAD * 2
-  const infoX = CARD_PAD + COVER_SIZE + 24
-  const infoW = contentW - COVER_SIZE - 24
+  // ---- 预计算各卡片高度 ----
 
-  measureCtx.font = FONT_NAME_BOLD
-  let nameLines = wrapText(measureCtx, album.albumName || '', infoW)
+  // 封面已固定 coverSize
+
+  // 专辑名
+  const FONT_NAME = `800 48px ${FONT_FAMILY}`
+  const NAME_LINE_H = 58
+  measureCtx.font = FONT_NAME
+  let nameLines = wrapText(measureCtx, album.albumName || '', cardInnerW)
   if (nameLines.length > 3) nameLines = nameLines.slice(0, 3)
-  const NAME_LINE_H = 56
+  const nameH = nameLines.length * NAME_LINE_H
 
-  const headerH = Math.max(COVER_SIZE, nameLines.length * NAME_LINE_H + 40 + 20) + 24
+  // 艺术家
+  const FONT_ARTIST = `400 30px ${FONT_FAMILY}`
+  const ARTIST_H = 40
 
-  let genresH = 0
-  const tagLineW = contentW
+  // 标签
+  let tagRows = 0
+  const FONT_TAG = `500 22px ${FONT_FAMILY}`
+  measureCtx.font = FONT_TAG
   if (album.genres.length > 0) {
-    measureCtx.font = FONT_TAG
-    let tagRowW = 0
-    let tagRows = 1
+    let rowW = 0
+    tagRows = 1
     for (const genre of album.genres) {
       const tagW = measureCtx.measureText(genre).width + 28
-      if (tagRowW + tagW + 8 > tagLineW && tagRowW > 0) {
+      if (rowW + tagW + 8 > cardInnerW && rowW > 0) {
         tagRows++
-        tagRowW = tagW + 8
+        rowW = tagW + 8
       } else {
-        tagRowW += tagW + 8
+        rowW += tagW + 8
       }
     }
-    genresH = 16 + tagRows * 34 + 16
   }
+  const TAG_ROW_H = 34
+  const tagsH = album.genres.length > 0 ? tagRows * TAG_ROW_H + 8 : 0
 
-  const metaH = 16 + 30 + 12
-  const starH = album.averageScore > 0 ? 12 + 32 + 16 : 0
+  // 元信息行
+  const FONT_META = `400 26px ${FONT_FAMILY}`
+  const META_H = 34
 
-  let tracksH = 0
+  // 评分星星
+  const starH = album.averageScore > 0 ? 40 : 0
+  const FONT_RATING = `700 30px ${FONT_FAMILY}`
+
+  // 专辑信息卡片内容高度
+  const infoCardAboveCover = CARD_PADDING
+  const infoCardBelowCover =
+    24 + nameH + 8 + ARTIST_H + (album.genres.length > 0 ? 16 + tagsH : 0) + 16 + META_H + (album.averageScore > 0 ? 12 + starH : 0)
+  const infoCardH = infoCardAboveCover + coverSize + infoCardBelowCover + CARD_PADDING
+
+  // 歌曲列表卡片
+  let songsCardH = 0
+  const FONT_SECTION = `700 34px ${FONT_FAMILY}`
+  const FONT_SONG_NUM = `500 26px ${FONT_FAMILY}`
+  const FONT_SONG_NAME = `400 30px ${FONT_FAMILY}`
+  const SONG_ROW_H = 48
+  const NUM_AREA_W = 44
+
   if (album.tracks.length > 0) {
-    tracksH = 12 + 1 + 20 + 30 + 18 + album.tracks.length * 42 + 12
+    const headerH = CARD_PADDING + 34 + 24
+    const bodyH = album.tracks.length * SONG_ROW_H
+    songsCardH = headerH + bodyH + CARD_PADDING
   }
 
-  let interpretationH = 0
+  // 感想卡片
+  let reviewCardH = 0
+  let interpLines: string[] = []
+  const FONT_NOTE = `400 28px ${FONT_FAMILY}`
+
   if (hasInterpretation) {
-    const interpMaxW = contentW - 24
-    measureCtx.font = FONT_BODY
-    const interpLines = wrapText(measureCtx, album.interpretation!, interpMaxW)
-    const maxLines = Math.min(interpLines.length, 10)
-    interpretationH = 12 + 1 + 20 + 30 + 18 + maxLines * 36 + 20
+    measureCtx.font = FONT_NOTE
+    const interpMaxW = cardInnerW - 40
+    interpLines = wrapText(measureCtx, album.interpretation!, interpMaxW).slice(0, 12)
+    const NOTE_LINE_H = 40
+    const noteContentH = 20 + interpLines.length * NOTE_LINE_H + 20
+    const headerH = CARD_PADDING + 34 + 20
+    reviewCardH = headerH + noteContentH + CARD_PADDING
   }
 
-  const cardContentH = headerH + genresH + metaH + starH + tracksH + interpretationH
-  const cardH = cardContentH + CARD_PAD * 2
-
-  const FOOTER_H = 80
-  const H = 40 + cardH + 24 + FOOTER_H + 24
+  // 总高度
+  const footerH = 80
+  const H = 48 + infoCardH + CARD_GAP + songsCardH + (reviewCardH > 0 ? CARD_GAP + reviewCardH : 0) + CARD_GAP + footerH + 48
 
   const canvas = document.createElement('canvas')
-  canvas.width = W
+  canvas.width = CANVAS_WIDTH
   canvas.height = H
   const ctx = canvas.getContext('2d')!
 
-  ctx.fillStyle = '#f2f2f6'
-  ctx.fillRect(0, 0, W, H)
+  // 背景
+  ctx.fillStyle = COLORS.background
+  ctx.fillRect(0, 0, CANVAS_WIDTH, H)
 
-  const cardX = CARD_MARGIN
-  const cardY = 40
+  let y = 48
 
-  ctx.fillStyle = '#ffffff'
-  ctx.beginPath()
-  ctx.roundRect(cardX, cardY, CARD_W, cardH, 24)
-  ctx.fill()
-  ctx.shadowColor = 'rgba(0,0,0,0.04)'
-  ctx.shadowBlur = 30
-  ctx.shadowOffsetY = 2
-  ctx.fill()
-  ctx.shadowColor = 'transparent'
+  // ==================== 专辑信息卡片 ====================
+  drawCard(ctx, PAGE_PADDING, y, CARD_WIDTH, infoCardH)
 
-  let y = cardY + CARD_PAD
-  const contentX = cardX + CARD_PAD
+  const infoX = PAGE_PADDING + CARD_PADDING
 
+  // 封面
+  const coverY = y + CARD_PADDING
   if (coverImg) {
-    ctx.save()
-    ctx.beginPath()
-    ctx.roundRect(contentX, y, COVER_SIZE, COVER_SIZE, COVER_RADIUS)
-    ctx.clip()
-    ctx.drawImage(coverImg, contentX, y, COVER_SIZE, COVER_SIZE)
-    ctx.restore()
+    drawRoundedImage(ctx, coverImg, infoX, coverY, coverSize, coverSize, 24)
   } else {
     ctx.fillStyle = '#e5e5ea'
     ctx.beginPath()
-    ctx.roundRect(contentX, y, COVER_SIZE, COVER_SIZE, COVER_RADIUS)
+    ctx.roundRect(infoX, coverY, coverSize, coverSize, 24)
     ctx.fill()
     ctx.fillStyle = '#c7c7cc'
-    ctx.font = `800 60px ${FONT_STACK}`
+    ctx.font = `800 80px ${FONT_FAMILY}`
     ctx.textAlign = 'center'
-    ctx.fillText((album.albumName || '?').charAt(0), contentX + COVER_SIZE / 2, y + COVER_SIZE / 2 + 20)
+    ctx.fillText((album.albumName || '?').charAt(0), infoX + coverSize / 2, coverY + coverSize / 2 + 28)
     ctx.textAlign = 'left'
   }
 
-  ctx.fillStyle = '#1d1d1f'
-  ctx.font = FONT_NAME_BOLD
-  let nameY = y + 48
-  const nameStartX = contentX + COVER_SIZE + 24
+  let infoY = coverY + coverSize + 24
+
+  // 专辑名
+  ctx.fillStyle = COLORS.textPrimary
+  ctx.font = FONT_NAME
   for (const line of nameLines) {
-    ctx.fillText(line, nameStartX, nameY)
-    nameY += NAME_LINE_H
+    ctx.fillText(line, infoX, infoY + 48)
+    infoY += NAME_LINE_H
   }
 
-  ctx.fillStyle = '#8e8e93'
+  // 艺术家
+  infoY += 8
+  ctx.fillStyle = COLORS.textSecondary
   ctx.font = FONT_ARTIST
-  nameY += 4
-  ctx.fillText(truncateText(ctx, album.artistName || '', infoW), nameStartX, nameY)
+  ctx.fillText(truncateText(ctx, album.artistName || '', cardInnerW), infoX, infoY + 30)
+  infoY += ARTIST_H
 
-  y += COVER_SIZE + 24
-
+  // 标签
   if (album.genres.length > 0) {
-    measureCtx.font = FONT_TAG
-    let tagX = contentX
-    let tagRowY = y + 16
-    let tagRowW = 0
+    infoY += 16
     ctx.font = FONT_TAG
+    let tagX = infoX
+    let tagY = infoY
     for (const genre of album.genres) {
       const tagW = measureCtx.measureText(genre).width + 28
-      if (tagRowW + tagW + 8 > contentW && tagRowW > 0) {
-        tagRowY += 34
-        tagX = contentX
-        tagRowW = tagW + 8
-      } else {
-        tagRowW += tagW + 8
+      if (tagX + tagW > infoX + cardInnerW && tagX > infoX) {
+        tagY += TAG_ROW_H
+        tagX = infoX
       }
-      ctx.fillStyle = '#fce4e8'
+      ctx.fillStyle = COLORS.tagBg
       ctx.beginPath()
-      ctx.roundRect(tagX, tagRowY, tagW, 30, 15)
+      ctx.roundRect(tagX, tagY, tagW, 30, 15)
       ctx.fill()
-      ctx.fillStyle = '#fa2d48'
-      ctx.fillText(genre, tagX + 14, tagRowY + 21)
+      ctx.fillStyle = COLORS.tagText
+      ctx.fillText(genre, tagX + 14, tagY + 21)
       tagX += tagW + 8
     }
-    y += genresH
+    infoY = tagY + TAG_ROW_H
   }
 
-  ctx.fillStyle = '#aeaeb2'
+  // 元信息
+  infoY += 16
+  ctx.fillStyle = COLORS.textTertiary
   ctx.font = FONT_META
   const metaText = `收听于 ${album.listenDate}  |  ${album.tracks.length} 首歌曲`
-  ctx.fillText(metaText, contentX, y + 12 + 24)
-  y += metaH
+  ctx.fillText(metaText, infoX, infoY + 26)
+  infoY += META_H
 
+  // 评分
   if (album.averageScore > 0) {
-    y += 12
-    const starSize = 14
-    const starGap = 26
+    infoY += 12
+    const starSize = 16
+    const starGap = 30
     const starCount = Math.round(album.averageScore)
     for (let s = 0; s < starCount; s++) {
-      drawFilledStar(ctx, contentX + s * starGap, y + 16, starSize)
+      drawFilledStar(ctx, infoX + s * starGap, infoY + 18, starSize)
     }
-    ctx.fillStyle = '#1d1d1f'
-    ctx.font = FONT_SCORE
-    ctx.fillText(album.averageScore.toFixed(1), contentX + starCount * starGap + 12, y + 26)
-    y += starH
+    ctx.fillStyle = COLORS.textPrimary
+    ctx.font = FONT_RATING
+    ctx.fillText(album.averageScore.toFixed(1), infoX + starCount * starGap + 14, infoY + 26)
   }
 
+  y += infoCardH + CARD_GAP
+
+  // ==================== 歌曲列表卡片 ====================
   if (album.tracks.length > 0) {
-    y += 12
-    ctx.fillStyle = '#e5e5ea'
-    ctx.fillRect(contentX, y, contentW, 1)
-    y += 20
+    drawCard(ctx, PAGE_PADDING, y, CARD_WIDTH, songsCardH)
+    const songsX = PAGE_PADDING + CARD_PADDING
 
-    ctx.fillStyle = '#1d1d1f'
+    let sy = y + CARD_PADDING
+    ctx.fillStyle = COLORS.textPrimary
     ctx.font = FONT_SECTION
-    ctx.fillText('歌曲列表', contentX, y + 30)
-    y += 48
+    ctx.fillText('歌曲列表', songsX, sy + 34)
+    sy += 34 + 24
 
-    const TRACK_ROW_H = 42
-    const numW = 32
-    const trackStarAreaW = 120
-    const trackNameMaxW = contentW - numW - 16 - trackStarAreaW - 12
+    const MAX_TRACK_W = cardInnerW - NUM_AREA_W - 16 - 140
     for (let i = 0; i < album.tracks.length; i++) {
       const track = album.tracks[i]
 
-      ctx.fillStyle = '#c7c7cc'
-      ctx.font = FONT_TRACK_NUM
+      // 序号
+      ctx.fillStyle = COLORS.textTertiary
+      ctx.font = FONT_SONG_NUM
       ctx.textAlign = 'right'
-      ctx.fillText(String(i + 1), contentX + numW, y + 28)
+      ctx.fillText(String(i + 1), songsX + NUM_AREA_W, sy + 32)
       ctx.textAlign = 'left'
 
-      ctx.fillStyle = '#1d1d1f'
-      ctx.font = FONT_TRACK
-      const trackNameX = contentX + numW + 16
-      ctx.fillText(truncateText(ctx, track.name, trackNameMaxW), trackNameX, y + 28)
+      // 歌曲名
+      ctx.fillStyle = COLORS.textPrimary
+      ctx.font = FONT_SONG_NAME
+      const nameX = songsX + NUM_AREA_W + 16
+      ctx.fillText(truncateText(ctx, track.name, MAX_TRACK_W), nameX, sy + 32)
 
+      // 评分星星
       if (track.score > 0) {
-        const trackStarX = contentX + contentW - trackStarAreaW
-        const trackStarSize = 10
-        const trackStarGap = 20
+        const trackStarX = songsX + cardInnerW - 140
+        const trackStarSize = 12
+        const trackStarGap = 24
         for (let s = 0; s < track.score; s++) {
-          drawFilledStar(ctx, trackStarX + s * trackStarGap, y + 16, trackStarSize)
+          drawFilledStar(ctx, trackStarX + s * trackStarGap, sy + 18, trackStarSize)
         }
       }
 
-      y += TRACK_ROW_H
+      sy += SONG_ROW_H
     }
-    y += 12
+
+    y += songsCardH + CARD_GAP
   }
 
+  // ==================== 收听感想卡片 ====================
   if (hasInterpretation) {
-    y += 12
-    ctx.fillStyle = '#e5e5ea'
-    ctx.fillRect(contentX, y, contentW, 1)
-    y += 20
+    drawCard(ctx, PAGE_PADDING, y, CARD_WIDTH, reviewCardH)
+    const reviewX = PAGE_PADDING + CARD_PADDING
 
-    ctx.fillStyle = '#1d1d1f'
+    let ry = y + CARD_PADDING
+    ctx.fillStyle = COLORS.textPrimary
     ctx.font = FONT_SECTION
-    ctx.fillText('收听感想', contentX, y + 30)
-    y += 48
+    ctx.fillText('收听感想', reviewX, ry + 34)
+    ry += 34 + 20
 
-    const interpMaxW = contentW - 24
-    ctx.font = FONT_BODY
-    const interpLines = wrapText(ctx, album.interpretation!, interpMaxW)
-    const maxLines = Math.min(interpLines.length, 10)
-    const interpBgH = 20 + maxLines * 36 + 20
-
-    ctx.fillStyle = '#f9f9fb'
+    const noteContentH = 20 + interpLines.length * 40 + 20
+    ctx.fillStyle = COLORS.noteBg
     ctx.beginPath()
-    ctx.roundRect(contentX + 12, y, contentW - 24, interpBgH, 14)
+    ctx.roundRect(reviewX, ry, cardInnerW, noteContentH, 16)
     ctx.fill()
 
-    ctx.fillStyle = '#3a3a3c'
-    let interpY = y + 20 + 24
-    for (let i = 0; i < maxLines; i++) {
-      ctx.fillText(interpLines[i], contentX + 12 + 20, interpY)
-      interpY += 36
+    ctx.fillStyle = '#3C3C43'
+    ctx.font = FONT_NOTE
+    let noteY = ry + 20 + 28
+    for (const line of interpLines) {
+      ctx.fillText(line, reviewX + 20, noteY)
+      noteY += 40
     }
+
+    y += reviewCardH + CARD_GAP
   }
 
-  const footerY = H - FOOTER_H - 24
-  ctx.fillStyle = '#c7c7cc'
-  ctx.font = `500 22px ${FONT_STACK}`
+  // ==================== 底部署名 ====================
+  ctx.fillStyle = COLORS.textTertiary
+  ctx.font = `500 24px ${FONT_FAMILY}`
   ctx.textAlign = 'center'
-  ctx.fillText('由 Soundraft 记录', W / 2, footerY)
+  ctx.fillText('由 Soundraft 记录', CANVAS_WIDTH / 2, y + 24)
 
-  ctx.fillStyle = '#d1d1d6'
-  ctx.font = `400 18px ${FONT_STACK}`
-  ctx.fillText('记录我听过的声音', W / 2, footerY + 30)
+  ctx.fillStyle = '#D1D1D6'
+  ctx.font = `400 20px ${FONT_FAMILY}`
+  ctx.fillText('记录我听过的声音', CANVAS_WIDTH / 2, y + 56)
   ctx.textAlign = 'left'
 
   return canvas.toDataURL('image/png', 1.0)
