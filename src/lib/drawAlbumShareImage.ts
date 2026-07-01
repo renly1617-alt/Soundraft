@@ -188,14 +188,14 @@ export async function drawAlbumShareImage(album: Album): Promise<string> {
   // 歌曲列表卡片
   let songsCardH = 0
   const FONT_SECTION = `700 34px ${FONT_FAMILY}`
-  const FONT_SONG_NUM = `500 26px ${FONT_FAMILY}`
-  const FONT_SONG_NAME = `400 30px ${FONT_FAMILY}`
-  const SONG_ROW_H = 48
+  const FONT_SONG_NUM = `500 24px ${FONT_FAMILY}`
+  const FONT_SONG_NAME = `400 28px ${FONT_FAMILY}`
+  const SONG_ROW_H = 58
   const NUM_AREA_W = 44
 
   if (album.tracks.length > 0) {
     const headerH = CARD_PADDING + 34 + 24
-    const bodyH = album.tracks.length * SONG_ROW_H
+    const bodyH = album.tracks.length * SONG_ROW_H + (album.tracks.length - 1) * 1
     songsCardH = headerH + bodyH + CARD_PADDING
   }
 
@@ -329,26 +329,33 @@ export async function drawAlbumShareImage(album: Album): Promise<string> {
     for (let i = 0; i < album.tracks.length; i++) {
       const track = album.tracks[i]
 
+      // 分割线
+      if (i > 0) {
+        ctx.fillStyle = COLORS.divider
+        ctx.fillRect(songsX, sy, cardInnerW, 1)
+        sy += 1
+      }
+
       // 序号
       ctx.fillStyle = COLORS.textTertiary
       ctx.font = FONT_SONG_NUM
       ctx.textAlign = 'right'
-      ctx.fillText(String(i + 1), songsX + NUM_AREA_W, sy + 32)
+      ctx.fillText(String(i + 1), songsX + NUM_AREA_W, sy + 28)
       ctx.textAlign = 'left'
 
       // 歌曲名
       ctx.fillStyle = COLORS.textPrimary
       ctx.font = FONT_SONG_NAME
       const nameX = songsX + NUM_AREA_W + 16
-      ctx.fillText(truncateText(ctx, track.name, MAX_TRACK_W), nameX, sy + 32)
+      ctx.fillText(truncateText(ctx, track.name, MAX_TRACK_W), nameX, sy + 28)
 
       // 评分星星
       if (track.score > 0) {
         const trackStarX = songsX + cardInnerW - 140
-        const trackStarSize = 12
-        const trackStarGap = 24
+        const trackStarSize = 11
+        const trackStarGap = 22
         for (let s = 0; s < track.score; s++) {
-          drawFilledStar(ctx, trackStarX + s * trackStarGap, sy + 18, trackStarSize)
+          drawFilledStar(ctx, trackStarX + s * trackStarGap, sy + 14, trackStarSize)
         }
       }
 
