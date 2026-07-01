@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Trash2, Edit3, Check, X, Plus } from 'lucide-react'
+import { ArrowLeft, Trash2, Edit3, Check, X, Plus, Share2, Loader2, Download } from 'lucide-react'
 import { useAlbumStore } from '@/stores/albumStore'
 import { GENRE_OPTIONS } from '@/types'
 import StarRating from '@/components/StarRating'
+import { drawAlbumShareImage } from '@/lib/drawAlbumShareImage'
 
 export default function AlbumDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -20,6 +21,8 @@ export default function AlbumDetailPage() {
   const [customGenre, setCustomGenre] = useState('')
   const [showCustomGenre, setShowCustomGenre] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
 
   if (!album) {
     return (
@@ -79,6 +82,42 @@ export default function AlbumDetailPage() {
     setShowDeleteConfirm(true)
   }
 
+  const handleShare = async () => {
+    if (!album) return
+    setGenerating(true)
+    try {
+      const dataUrl = await drawAlbumShareImage(album)
+      setGeneratedUrl(dataUrl)
+    } catch {
+      alert('图片生成失败，请重试')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleDownload = () => {
+    if (!generatedUrl) return
+    const a = document.createElement('a')
+    a.href = generatedUrl
+    a.download = `Soundraft_${album.albumName}.png`
+    a.click()
+  }
+
+  const handleSystemShare = async () => {
+    if (!generatedUrl) return
+    const blob = await (await fetch(generatedUrl)).blob()
+    const file = new File([blob], `Soundraft_${album.albumName}.png`, { type: 'image/png' })
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: album.albumName }) } catch { /* cancelled */ }
+    } else {
+      handleDownload()
+    }
+  }
+
+  const handleClosePreview = () => {
+    setGeneratedUrl(null)
+  }
+
   const displayInterpretation = isEditing ? editNotes : album.interpretation
   const displayGenres = isEditing ? editGenres : album.genres
 
@@ -110,6 +149,12 @@ export default function AlbumDetailPage() {
               </>
             ) : (
               <>
+                <button
+                  onClick={handleShare}
+                  className="w-9 h-9 rounded-full bg-[#f2f2f6] flex items-center justify-center hover:bg-[#fce4e8] hover:text-[#fa2d48] transition-colors text-[#8e8e93]"
+                >
+                  <Share2 size={18} />
+                </button>
                 <button
                   onClick={startEditing}
                   className="w-9 h-9 rounded-full bg-[#f2f2f6] flex items-center justify-center hover:bg-[#e5e5ea] transition-colors text-[#8e8e93]"
@@ -311,6 +356,56 @@ export default function AlbumDetailPage() {
                 className="flex-1 h-11 rounded-full bg-[#fa2d48] text-white text-sm font-semibold hover:bg-[#e0283f] transition-colors"
               >
                 是
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {generating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-8 mx-6 shadow-xl flex flex-col items-center gap-4">
+            <Loader2 size={36} className="animate-spin text-[#fa2d48]" />
+            <p className="text-[#1d1d1f] font-semibold">生成分享图片中...</p>
+          </div>
+        </div>
+      )}
+
+      {generatedUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={handleClosePreview}>
+          <div className="bg-white rounded-2xl p-4 mx-4 max-w-md w-full shadow-xl flex flex-col gap-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-[#1d1d1f]">分享图片</h3>
+              <button onClick={handleClosePreview} className="w-8 h-8 rounded-full bg-[#f2f2f6] flex items-center justify-center hover:bg-[#e5e5ea] transition-colors">
+                <X size={16} className="text-[#8e8e93]" />
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden bg-[#f2f2f6]">
+              <img
+                src={generatedUrl}
+                alt="分享图片预览"
+                className="w-full"
+                onContextMenu={e => {
+                  e.preventDefault()
+                  handleDownload()
+                }}
+              />
+            </div>
+            <p className="text-xs text-[#8e8e93] text-center">长按图片可保存到本地</p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDownload}
+                className="flex-1 h-11 rounded-full bg-[#f2f2f6] text-[#1d1d1f] text-sm font-semibold hover:bg-[#e5e5ea] transition-colors flex items-center justify-center gap-2"
+              >
+                <Download size={16} />
+                保存图片
+              </button>
+              <button
+                onClick={handleSystemShare}
+                className="flex-1 h-11 rounded-full bg-[#fa2d48] text-white text-sm font-semibold hover:bg-[#e0283f] transition-colors flex items-center justify-center gap-2"
+              >
+                <Share2 size={16} />
+                分享
               </button>
             </div>
           </div>
