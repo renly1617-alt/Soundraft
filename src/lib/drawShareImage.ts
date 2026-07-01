@@ -248,18 +248,18 @@ export async function drawShareImage(monthLabel: string, albums: Album[]): Promi
     }
     ctx.fillText(displayArtist, textX, artistY + ARTIST_H)
 
-    // 评分星星 - 右对齐，垂直居中于文本区域
+    // 评分星星 - 右对齐，垂直居中于文本区域（只显示红色实心星）
     if (album.averageScore > 0) {
       const starMidY = y + rowH / 2
       const starSize = 13
       const starGap = 30
       const rounded = Math.round(album.averageScore)
-      for (let s = 0; s < 5; s++) {
-        drawStar(ctx, starX + s * starGap, starMidY, starSize, s < rounded)
+      for (let s = 0; s < rounded; s++) {
+        drawStar(ctx, starX + s * starGap, starMidY, starSize, true)
       }
       ctx.fillStyle = '#FA233B'
       ctx.font = '800 32px "SF Pro Display", "Helvetica Neue", sans-serif'
-      ctx.fillText(album.averageScore.toFixed(1), starX + 5 * starGap + 12, starMidY + 10)
+      ctx.fillText(album.averageScore.toFixed(1), starX + rounded * starGap + 12, starMidY + 10)
     }
 
     y += rowH

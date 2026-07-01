@@ -1,5 +1,8 @@
 import type { Album } from '@/types'
 
+const FONT_STACK = '"PingFang SC", "SF Pro Display", "Hiragino Sans", "Noto Sans JP", "Helvetica Neue", sans-serif'
+const FONT_STACK_NUM = '"SF Pro Display", "Helvetica Neue", sans-serif'
+
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image()
@@ -48,287 +51,16 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines.length > 0 ? lines : ['']
 }
 
-export async function drawAlbumShareImage(album: Album): Promise<string> {
-  const W = 1080
-  const PAD = 64
-  const COVER_SIZE = 280
-  const CARD_RADIUS = 32
-  const GAP = 28
-
-  const NAME_FONT = '900 52px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
-  const ARTIST_FONT = '500 30px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
-  const SECTION_TITLE_FONT = '700 32px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
-  const TRACK_FONT = '400 28px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
-  const BODY_FONT = '400 24px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
-
-  const coverImg = album.coverUrl ? await loadImage(album.coverUrl) : null
-
-  const hasInterpretation = !!album.interpretation
-
-  // 预计算布局
-  const measureCanvas = document.createElement('canvas')
-  const measureCtx = measureCanvas.getContext('2d')!
-
-  // 专辑名换行
-  const nameMaxW = W - PAD * 2 - COVER_SIZE - 40
-  measureCtx.font = NAME_FONT
-  let nameLines = album.albumName.length > 0 ? wrapText(measureCtx, album.albumName, nameMaxW) : ['']
-  if (nameLines.length > 3) nameLines = nameLines.slice(0, 3)
-
-  // 头部区域高度
-  const nameLineH = 62
-  const headerInfoH = nameLines.length * nameLineH + 36 + 48 + 20
-
-  // 头部：封面与信息并排
-  const headerH = Math.max(COVER_SIZE, headerInfoH) + PAD
-
-  // 标签区域
-  let genresH = 0
-  if (album.genres.length > 0) {
-    genresH = 24 + 16 + 36
+function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text
+  let cut = text
+  while (ctx.measureText(cut + '…').width > maxWidth && cut.length > 0) {
+    cut = cut.slice(0, -1)
   }
-
-  // 元信息行
-  const metaH = 24 + 16 + 24
-
-  // 星级
-  const starH = album.averageScore > 0 ? 20 + 30 + 20 : 0
-
-  // 曲目列表
-  let tracksH = 0
-  if (album.tracks.length > 0) {
-    const trackRowH = 36 + 16
-    tracksH = 28 + 32 + 20 + album.tracks.length * trackRowH + 20
-  }
-
-  // 感想
-  let interpretationH = 0
-  if (hasInterpretation && album.interpretation) {
-    const interpMaxW = W - PAD * 2 - 48
-    measureCtx.font = BODY_FONT
-    const interpLines = wrapText(measureCtx, album.interpretation, interpMaxW)
-    const interpLineH = 34
-    const maxInterpLines = Math.min(interpLines.length, 8)
-    interpretationH = 28 + 32 + 20 + maxInterpLines * interpLineH + 24
-  }
-
-  const cardTopPad = 32
-  const cardBottomPad = 32
-  const contentH = headerH + genresH + metaH + starH + tracksH + interpretationH
-  const cardH = contentH + cardTopPad + cardBottomPad
-
-  const footerH = 60 + 26 + 8 + 20 + 48
-
-  const H = PAD + cardH + PAD + footerH
-
-  const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
-  const ctx = canvas.getContext('2d')!
-
-  // 背景
-  ctx.fillStyle = '#f2f2f6'
-  ctx.fillRect(0, 0, W, H)
-
-  // 白色卡片
-  const cardX = 40
-  const cardY = PAD
-  ctx.fillStyle = '#ffffff'
-  ctx.beginPath()
-  ctx.roundRect(cardX, cardY, W - 80, cardH, CARD_RADIUS)
-  ctx.fill()
-  ctx.shadowColor = 'rgba(0,0,0,0.06)'
-  ctx.shadowBlur = 40
-  ctx.shadowOffsetY = 4
-  ctx.fill()
-  ctx.shadowColor = 'transparent'
-
-  let y = cardY + cardTopPad
-
-  // ---- 头部：封面 + 信息 ----
-  const coverX = PAD
-
-  // 封面
-  if (coverImg) {
-    ctx.save()
-    ctx.beginPath()
-    ctx.roundRect(coverX, y, COVER_SIZE, COVER_SIZE, 20)
-    ctx.clip()
-    ctx.drawImage(coverImg, coverX, y, COVER_SIZE, COVER_SIZE)
-    ctx.restore()
-  } else {
-    ctx.fillStyle = '#e5e5ea'
-    ctx.beginPath()
-    ctx.roundRect(coverX, y, COVER_SIZE, COVER_SIZE, 20)
-    ctx.fill()
-    ctx.fillStyle = '#c7c7cc'
-    ctx.font = '800 80px "SF Pro Display", "Helvetica Neue", sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(album.albumName.charAt(0), coverX + COVER_SIZE / 2, y + COVER_SIZE / 2 + 28)
-    ctx.textAlign = 'left'
-  }
-
-  // 右侧信息
-  const infoX = coverX + COVER_SIZE + 40
-
-  // 专辑名
-  ctx.fillStyle = '#1d1d1f'
-  ctx.font = NAME_FONT
-  let nameY = y + 52
-  for (const line of nameLines) {
-    ctx.fillText(line, infoX, nameY)
-    nameY += nameLineH
-  }
-
-  // 艺术家
-  nameY += 8
-  ctx.fillStyle = '#8e8e93'
-  ctx.font = ARTIST_FONT
-  ctx.fillText(album.artistName, infoX, nameY)
-
-  y += headerH
-
-  // ---- 标签 ----
-  if (album.genres.length > 0) {
-    ctx.fillStyle = '#fce4e8'
-    const tagFont = '500 22px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
-    ctx.font = tagFont
-    let tagX = PAD
-    for (const genre of album.genres) {
-      const tagW = ctx.measureText(genre).width + 32
-      const tagH = 36
-      ctx.beginPath()
-      ctx.roundRect(tagX, y, tagW, tagH, 18)
-      ctx.fill()
-      ctx.fillStyle = '#fa2d48'
-      ctx.fillText(genre, tagX + 16, y + 25)
-      ctx.fillStyle = '#fce4e8'
-      tagX += tagW + 12
-    }
-    y += genresH
-  }
-
-  // ---- 元信息 ----
-  ctx.fillStyle = '#8e8e93'
-  ctx.font = BODY_FONT
-  const metaY = y + 4
-  const metaText = `收听于 ${album.listenDate}  |  ${album.tracks.length} 首歌曲`
-  ctx.fillText(metaText, PAD, metaY + 24)
-  y += metaH
-
-  // ---- 星级 ----
-  if (album.averageScore > 0) {
-    const starSize = 20
-    const starGap = 34
-    const rounded = Math.round(album.averageScore)
-    for (let s = 0; s < 5; s++) {
-      drawStar(ctx, PAD + s * starGap, y + 18, starSize, s < rounded)
-    }
-    ctx.fillStyle = '#1d1d1f'
-    ctx.font = '800 36px "SF Pro Display", "Helvetica Neue", sans-serif'
-    ctx.fillText(album.averageScore.toFixed(1), PAD + 5 * starGap + 16, y + 28)
-    y += starH
-  }
-
-  // ---- 歌曲列表 ----
-  if (album.tracks.length > 0) {
-    // 分割线
-    y += 8
-    ctx.fillStyle = '#f0f0f2'
-    ctx.fillRect(PAD, y, W - PAD * 2, 1)
-    y += 20
-
-    ctx.fillStyle = '#1d1d1f'
-    ctx.font = SECTION_TITLE_FONT
-    ctx.fillText('歌曲列表', PAD, y + 32)
-    y += 44
-
-    const trackRowH = 36 + 16
-    for (let i = 0; i < album.tracks.length; i++) {
-      const track = album.tracks[i]
-
-      ctx.fillStyle = '#c7c7cc'
-      ctx.font = TRACK_FONT
-      ctx.textAlign = 'center'
-      ctx.fillText(String(i + 1), PAD + 20, y + 30)
-      ctx.textAlign = 'left'
-
-      ctx.fillStyle = '#1d1d1f'
-      ctx.font = TRACK_FONT
-      const trackNameMaxW = W - PAD * 2 - 80 - 220
-      let displayName = track.name
-      if (ctx.measureText(track.name).width > trackNameMaxW) {
-        let cut = track.name
-        while (ctx.measureText(cut + '…').width > trackNameMaxW && cut.length > 0) {
-          cut = cut.slice(0, -1)
-        }
-        displayName = cut + '…'
-      }
-      ctx.fillText(displayName, PAD + 60, y + 30)
-
-      // 曲目星级
-      if (track.score > 0) {
-        const trackStarX = W - PAD - 220
-        const trackStarSize = 11
-        const trackStarGap = 22
-        for (let s = 0; s < 5; s++) {
-          drawStar(ctx, trackStarX + s * trackStarGap, y + 14, trackStarSize, s < track.score)
-        }
-      }
-
-      y += trackRowH
-    }
-    y += 20
-  }
-
-  // ---- 感想（可选） ----
-  if (hasInterpretation && album.interpretation) {
-    // 分割线
-    ctx.fillStyle = '#f0f0f2'
-    ctx.fillRect(PAD, y, W - PAD * 2, 1)
-    y += 28
-
-    ctx.fillStyle = '#1d1d1f'
-    ctx.font = SECTION_TITLE_FONT
-    ctx.fillText('收听感想', PAD, y + 32)
-    y += 52
-
-    const interpMaxW = W - PAD * 2 - 48
-    ctx.font = BODY_FONT
-    const interpLines = wrapText(ctx, album.interpretation, interpMaxW)
-    const interpLineH = 34
-    const maxInterpLines = Math.min(interpLines.length, 8)
-    const interpBgH = 24 + maxInterpLines * interpLineH + 24
-
-    ctx.fillStyle = '#f9f9fb'
-    ctx.beginPath()
-    ctx.roundRect(PAD + 12, y, W - PAD * 2 - 24, interpBgH, 16)
-    ctx.fill()
-
-    ctx.fillStyle = '#1d1d1f'
-    let interpY = y + 24 + 24
-    for (let i = 0; i < maxInterpLines; i++) {
-      ctx.fillText(interpLines[i], PAD + 12 + 24, interpY)
-      interpY += interpLineH
-    }
-  }
-
-  // ---- 底部 ----
-  const footerBaseY = H - footerH
-  ctx.fillStyle = '#c7c7cc'
-  ctx.font = '600 26px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
-  ctx.textAlign = 'center'
-  ctx.fillText('由 Soundraft 记录', W / 2, footerBaseY + 48)
-
-  ctx.fillStyle = '#d1d1d6'
-  ctx.font = '400 20px "PingFang SC", "Microsoft YaHei", "SF Pro Display", "Helvetica Neue", sans-serif'
-  ctx.fillText('记录我听过的声音', W / 2, footerBaseY + 48 + 26 + 8)
-  ctx.textAlign = 'left'
-
-  return canvas.toDataURL('image/png', 1.0)
+  return cut + '…'
 }
 
-function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, filled: boolean) {
+function drawFilledStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
   ctx.save()
   ctx.translate(cx, cy)
   ctx.beginPath()
@@ -340,13 +72,276 @@ function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numb
     else ctx.lineTo(x, y)
   }
   ctx.closePath()
-  if (filled) {
-    ctx.fillStyle = '#FA233B'
-    ctx.fill()
-  } else {
-    ctx.strokeStyle = '#d1d1d6'
-    ctx.lineWidth = 2
-    ctx.stroke()
-  }
+  ctx.fillStyle = '#FA233B'
+  ctx.fill()
   ctx.restore()
+}
+
+export async function drawAlbumShareImage(album: Album): Promise<string> {
+  const W = 750
+  const CARD_MARGIN = 28
+  const CARD_W = W - CARD_MARGIN * 2
+  const CARD_PAD = 36
+
+  const COVER_SIZE = 164
+  const COVER_RADIUS = 16
+
+  const FONT_NAME_BOLD = `800 48px ${FONT_STACK}`
+  const FONT_ARTIST = `500 28px ${FONT_STACK}`
+  const FONT_META = `400 24px ${FONT_STACK}`
+  const FONT_SECTION = `700 30px ${FONT_STACK}`
+  const FONT_TRACK = `400 26px ${FONT_STACK}`
+  const FONT_TRACK_NUM = `500 22px ${FONT_STACK}`
+  const FONT_BODY = `400 24px ${FONT_STACK}`
+  const FONT_SCORE = `800 32px ${FONT_STACK_NUM}`
+  const FONT_TAG = `500 20px ${FONT_STACK}`
+
+  const coverImg = album.coverUrl ? await loadImage(album.coverUrl) : null
+  const hasInterpretation = !!(album.interpretation && album.interpretation.trim())
+
+  const measureCanvas = document.createElement('canvas')
+  const measureCtx = measureCanvas.getContext('2d')!
+
+  const contentW = CARD_W - CARD_PAD * 2
+  const infoX = CARD_PAD + COVER_SIZE + 24
+  const infoW = contentW - COVER_SIZE - 24
+
+  measureCtx.font = FONT_NAME_BOLD
+  let nameLines = wrapText(measureCtx, album.albumName || '', infoW)
+  if (nameLines.length > 3) nameLines = nameLines.slice(0, 3)
+  const NAME_LINE_H = 56
+
+  const headerH = Math.max(COVER_SIZE, nameLines.length * NAME_LINE_H + 40 + 20) + 24
+
+  let genresH = 0
+  const tagLineW = contentW
+  if (album.genres.length > 0) {
+    measureCtx.font = FONT_TAG
+    let tagRowW = 0
+    let tagRows = 1
+    for (const genre of album.genres) {
+      const tagW = measureCtx.measureText(genre).width + 28
+      if (tagRowW + tagW + 8 > tagLineW && tagRowW > 0) {
+        tagRows++
+        tagRowW = tagW + 8
+      } else {
+        tagRowW += tagW + 8
+      }
+    }
+    genresH = 16 + tagRows * 34 + 16
+  }
+
+  const metaH = 16 + 30 + 12
+  const starH = album.averageScore > 0 ? 12 + 32 + 16 : 0
+
+  let tracksH = 0
+  if (album.tracks.length > 0) {
+    tracksH = 12 + 1 + 20 + 30 + 18 + album.tracks.length * 42 + 12
+  }
+
+  let interpretationH = 0
+  if (hasInterpretation) {
+    const interpMaxW = contentW - 24
+    measureCtx.font = FONT_BODY
+    const interpLines = wrapText(measureCtx, album.interpretation!, interpMaxW)
+    const maxLines = Math.min(interpLines.length, 10)
+    interpretationH = 12 + 1 + 20 + 30 + 18 + maxLines * 36 + 20
+  }
+
+  const cardContentH = headerH + genresH + metaH + starH + tracksH + interpretationH
+  const cardH = cardContentH + CARD_PAD * 2
+
+  const FOOTER_H = 80
+  const H = 40 + cardH + 24 + FOOTER_H + 24
+
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+
+  ctx.fillStyle = '#f2f2f6'
+  ctx.fillRect(0, 0, W, H)
+
+  const cardX = CARD_MARGIN
+  const cardY = 40
+
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  ctx.roundRect(cardX, cardY, CARD_W, cardH, 24)
+  ctx.fill()
+  ctx.shadowColor = 'rgba(0,0,0,0.04)'
+  ctx.shadowBlur = 30
+  ctx.shadowOffsetY = 2
+  ctx.fill()
+  ctx.shadowColor = 'transparent'
+
+  let y = cardY + CARD_PAD
+  const contentX = cardX + CARD_PAD
+
+  if (coverImg) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.roundRect(contentX, y, COVER_SIZE, COVER_SIZE, COVER_RADIUS)
+    ctx.clip()
+    ctx.drawImage(coverImg, contentX, y, COVER_SIZE, COVER_SIZE)
+    ctx.restore()
+  } else {
+    ctx.fillStyle = '#e5e5ea'
+    ctx.beginPath()
+    ctx.roundRect(contentX, y, COVER_SIZE, COVER_SIZE, COVER_RADIUS)
+    ctx.fill()
+    ctx.fillStyle = '#c7c7cc'
+    ctx.font = `800 60px ${FONT_STACK}`
+    ctx.textAlign = 'center'
+    ctx.fillText((album.albumName || '?').charAt(0), contentX + COVER_SIZE / 2, y + COVER_SIZE / 2 + 20)
+    ctx.textAlign = 'left'
+  }
+
+  ctx.fillStyle = '#1d1d1f'
+  ctx.font = FONT_NAME_BOLD
+  let nameY = y + 48
+  const nameStartX = contentX + COVER_SIZE + 24
+  for (const line of nameLines) {
+    ctx.fillText(line, nameStartX, nameY)
+    nameY += NAME_LINE_H
+  }
+
+  ctx.fillStyle = '#8e8e93'
+  ctx.font = FONT_ARTIST
+  nameY += 4
+  ctx.fillText(truncateText(ctx, album.artistName || '', infoW), nameStartX, nameY)
+
+  y += COVER_SIZE + 24
+
+  if (album.genres.length > 0) {
+    measureCtx.font = FONT_TAG
+    let tagX = contentX
+    let tagRowY = y + 16
+    let tagRowW = 0
+    ctx.font = FONT_TAG
+    for (const genre of album.genres) {
+      const tagW = measureCtx.measureText(genre).width + 28
+      if (tagRowW + tagW + 8 > contentW && tagRowW > 0) {
+        tagRowY += 34
+        tagX = contentX
+        tagRowW = tagW + 8
+      } else {
+        tagRowW += tagW + 8
+      }
+      ctx.fillStyle = '#fce4e8'
+      ctx.beginPath()
+      ctx.roundRect(tagX, tagRowY, tagW, 30, 15)
+      ctx.fill()
+      ctx.fillStyle = '#fa2d48'
+      ctx.fillText(genre, tagX + 14, tagRowY + 21)
+      tagX += tagW + 8
+    }
+    y += genresH
+  }
+
+  ctx.fillStyle = '#aeaeb2'
+  ctx.font = FONT_META
+  const metaText = `收听于 ${album.listenDate}  |  ${album.tracks.length} 首歌曲`
+  ctx.fillText(metaText, contentX, y + 12 + 24)
+  y += metaH
+
+  if (album.averageScore > 0) {
+    y += 12
+    const starSize = 14
+    const starGap = 26
+    const starCount = Math.round(album.averageScore)
+    for (let s = 0; s < starCount; s++) {
+      drawFilledStar(ctx, contentX + s * starGap, y + 16, starSize)
+    }
+    ctx.fillStyle = '#1d1d1f'
+    ctx.font = FONT_SCORE
+    ctx.fillText(album.averageScore.toFixed(1), contentX + starCount * starGap + 12, y + 26)
+    y += starH
+  }
+
+  if (album.tracks.length > 0) {
+    y += 12
+    ctx.fillStyle = '#e5e5ea'
+    ctx.fillRect(contentX, y, contentW, 1)
+    y += 20
+
+    ctx.fillStyle = '#1d1d1f'
+    ctx.font = FONT_SECTION
+    ctx.fillText('歌曲列表', contentX, y + 30)
+    y += 48
+
+    const TRACK_ROW_H = 42
+    const numW = 32
+    const trackStarAreaW = 120
+    const trackNameMaxW = contentW - numW - 16 - trackStarAreaW - 12
+    for (let i = 0; i < album.tracks.length; i++) {
+      const track = album.tracks[i]
+
+      ctx.fillStyle = '#c7c7cc'
+      ctx.font = FONT_TRACK_NUM
+      ctx.textAlign = 'right'
+      ctx.fillText(String(i + 1), contentX + numW, y + 28)
+      ctx.textAlign = 'left'
+
+      ctx.fillStyle = '#1d1d1f'
+      ctx.font = FONT_TRACK
+      const trackNameX = contentX + numW + 16
+      ctx.fillText(truncateText(ctx, track.name, trackNameMaxW), trackNameX, y + 28)
+
+      if (track.score > 0) {
+        const trackStarX = contentX + contentW - trackStarAreaW
+        const trackStarSize = 10
+        const trackStarGap = 20
+        for (let s = 0; s < track.score; s++) {
+          drawFilledStar(ctx, trackStarX + s * trackStarGap, y + 16, trackStarSize)
+        }
+      }
+
+      y += TRACK_ROW_H
+    }
+    y += 12
+  }
+
+  if (hasInterpretation) {
+    y += 12
+    ctx.fillStyle = '#e5e5ea'
+    ctx.fillRect(contentX, y, contentW, 1)
+    y += 20
+
+    ctx.fillStyle = '#1d1d1f'
+    ctx.font = FONT_SECTION
+    ctx.fillText('收听感想', contentX, y + 30)
+    y += 48
+
+    const interpMaxW = contentW - 24
+    ctx.font = FONT_BODY
+    const interpLines = wrapText(ctx, album.interpretation!, interpMaxW)
+    const maxLines = Math.min(interpLines.length, 10)
+    const interpBgH = 20 + maxLines * 36 + 20
+
+    ctx.fillStyle = '#f9f9fb'
+    ctx.beginPath()
+    ctx.roundRect(contentX + 12, y, contentW - 24, interpBgH, 14)
+    ctx.fill()
+
+    ctx.fillStyle = '#3a3a3c'
+    let interpY = y + 20 + 24
+    for (let i = 0; i < maxLines; i++) {
+      ctx.fillText(interpLines[i], contentX + 12 + 20, interpY)
+      interpY += 36
+    }
+  }
+
+  const footerY = H - FOOTER_H - 24
+  ctx.fillStyle = '#c7c7cc'
+  ctx.font = `500 22px ${FONT_STACK}`
+  ctx.textAlign = 'center'
+  ctx.fillText('由 Soundraft 记录', W / 2, footerY)
+
+  ctx.fillStyle = '#d1d1d6'
+  ctx.font = `400 18px ${FONT_STACK}`
+  ctx.fillText('记录我听过的声音', W / 2, footerY + 30)
+  ctx.textAlign = 'left'
+
+  return canvas.toDataURL('image/png', 1.0)
 }
